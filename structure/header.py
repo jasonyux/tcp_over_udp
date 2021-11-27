@@ -44,13 +44,22 @@ class Flags(Printable):
 	def fin(self):
 		return self.__fin
 
+	def __int__(self):
+		return self.cwr + self.ece + self.ack + self.syn + self.fin
+
 
 class Header(Printable):
 	def __init__(self) -> None:
 		super().__init__()
 
 	def compute_checksum(self):
-		return -1
+		ret = 0
+		for attribute in dir(self):
+			if attribute[:1] != "_":
+				data = getattr(self, attribute)
+				if not isinstance(data, Callable):
+					ret += int(data)
+		return ret
 
 
 class TCPHeader(Header):
