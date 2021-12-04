@@ -1,3 +1,5 @@
+import logging
+
 from structure.header import TCPHeader, Flags
 from structure.packet import Packet
 from utils import serialize
@@ -102,12 +104,32 @@ class TCP_SERVER(UDP_SERVER):
 				pass
 		return
 
+def __insert_content(old_content, start, new_content):
+	end_pos = start + len(new_content)
+	content = old_content[:start] + new_content
+	if len(old_content) > end_pos:
+		content += old_content[end_pos:]
+	return content
+
+def to_file(packet:Packet):
+	with open('file.txt', 'r+') as openfile:
+		content = openfile.read()
+		# insert new content
+		start_pos = packet.header.seq_num
+		content = __insert_content(content, start_pos, packet.payload)
+
+		# write
+		openfile.seek(0)
+		openfile.write(content)
+	return
 
 def service_client(server:TCP_SERVER):
 	# receive packet
 	received, client_address = server.receive()
-	print(f"[LOG] servicing {client_address}")
-	print(received)
+	logging.info(f"[LOG] servicing {client_address}")
+	logging.debug(received)
+
+	to_file(received)
 
 	# send packet
 	server.send('server')

@@ -1,4 +1,5 @@
 import globals
+import logging
 
 from tcp.client import TCP_CLIENT
 
@@ -12,12 +13,14 @@ def send_file(client:TCP_CLIENT):
 
 		# receive packet
 		received = client.receive()
-		print(received)
+		logging.info(received)
 	client.terminate()
 	return
 
 
 if __name__ == "__main__":
+	logging.basicConfig(level=logging.DEBUG)
+
 	client = TCP_CLIENT(
 		udpl_ip=globals.UDPL_IP_ADDR,
 		udpl_port=globals.UDPL_LSTN_PORT,
