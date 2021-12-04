@@ -63,7 +63,7 @@ class Header(Printable):
 
 
 class TCPHeader(Header):
-	def __init__(self, src_port, dst_port, seq_num, ack_num, _flags, rcvwd) -> None:
+	def __init__(self, src_port, dst_port, seq_num, ack_num, _flags:Flags, rcvwd) -> None:
 		self.__src_port = src_port
 		self.__dst_port = dst_port
 		self.__seq_num = seq_num
@@ -105,6 +105,12 @@ class TCPHeader(Header):
 	@property
 	def header_len(self):
 		return self.__header_len
+
+	def is_fin(self):
+		return self.__flags.fin == 1
+
+	def is_ack(self):
+		return self.__flags.ack == 1
 
 
 	

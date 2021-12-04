@@ -1,7 +1,7 @@
-from .header import Header
+from .header import TCPHeader
 
 class Packet(object):
-	def __init__(self, header:Header, payload:str) -> None:
+	def __init__(self, header:TCPHeader, payload:str) -> None:
 		self.__header = header
 		self.__payload = payload
 
