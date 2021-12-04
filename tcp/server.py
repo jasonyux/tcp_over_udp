@@ -91,18 +91,19 @@ class TCP_SERVER(UDP_SERVER):
 		self.__post_recv(packet)
 		return packet, client_address
 
-	def start(self):
+	def start(self, args):
 		server = self._socket
 		server.bind(self._serveraddress)
 		print("The server is ready to receive")
 
 		while True:
 			try:
-				service_client(self)
+				service_client(self, args)
 			except Exception as err:
 				print(err)
 				pass
 		return
+
 
 def __insert_content(old_content, start, new_content):
 	end_pos = start + len(new_content)
@@ -111,8 +112,8 @@ def __insert_content(old_content, start, new_content):
 		content += old_content[end_pos:]
 	return content
 
-def to_file(packet:Packet):
-	with open('file.txt', 'r+') as openfile:
+def to_file(packet:Packet, dst:str):
+	with open(dst, 'a+') as openfile:
 		content = openfile.read()
 		# insert new content
 		start_pos = packet.header.seq_num
@@ -123,14 +124,15 @@ def to_file(packet:Packet):
 		openfile.write(content)
 	return
 
-def service_client(server:TCP_SERVER):
+def service_client(server:TCP_SERVER, args):
 	# receive packet
 	received, client_address = server.receive()
 	logging.info(f"[LOG] servicing {client_address}")
 	logging.debug(received)
 
-	to_file(received)
+	# write to file
+	to_file(received, dst=args.file)
 
 	# send packet
-	server.send('server')
+	server.send('sack')
 	return
