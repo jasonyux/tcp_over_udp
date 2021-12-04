@@ -112,6 +112,9 @@ class TCP_CLIENT(UDP_CLIENT):
 				self.__timer.cancel()
 		
 			self.__ack_num = self.__next_ack(packet) # position of next byte
+		else:
+			# TODO:duplicate ack, fast retransmit possible
+			pass
 		return
 
 	def receive(self):

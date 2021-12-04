@@ -14,7 +14,10 @@ def send_file(client:TCP_CLIENT):
 		# receive packet
 		received = client.receive()
 		logging.info(received)
-	client.terminate()
+
+		if "quit" in msg:
+			client.terminate()
+			break
 	return
 
 

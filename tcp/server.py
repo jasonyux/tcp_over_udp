@@ -1,5 +1,6 @@
 import logging
 
+from pathlib import Path
 from structure.header import TCPHeader, Flags
 from structure.packet import Packet
 from utils import serialize
@@ -64,8 +65,8 @@ class TCP_SERVER(UDP_SERVER):
 			dst_port=client_address[1], 
 			seq_num=self.__seq_num, 
 			ack_num=self.__ack_num, 
-			_flags=Flags(4,5,6,7,8), 
-			rcvwd=9)
+			_flags=Flags(0,0,1,0,0), 
+			rcvwd=10)
 		packet = Packet(header, payload)
 
 		# 2. send packet
@@ -94,6 +95,8 @@ class TCP_SERVER(UDP_SERVER):
 	def start(self, args):
 		server = self._socket
 		server.bind(self._serveraddress)
+		# other application related init
+		init(args)
 		print("The server is ready to receive")
 
 		while True:
@@ -105,6 +108,14 @@ class TCP_SERVER(UDP_SERVER):
 		return
 
 
+def init(args):
+	if not Path(args.file).exists():
+		Path(args.file).touch()
+	else:
+		with open(args.file, 'r+') as f:
+			f.truncate(0)
+	return
+
 def __insert_content(old_content, start, new_content):
 	end_pos = start + len(new_content)
 	content = old_content[:start] + new_content
@@ -113,7 +124,8 @@ def __insert_content(old_content, start, new_content):
 	return content
 
 def to_file(packet:Packet, dst:str):
-	with open(dst, 'a+') as openfile:
+	# if you don't want to overwrite, use r+
+	with open(dst, 'r+') as openfile:
 		content = openfile.read()
 		# insert new content
 		start_pos = packet.header.seq_num
@@ -122,6 +134,7 @@ def to_file(packet:Packet, dst:str):
 		# write
 		openfile.seek(0)
 		openfile.write(content)
+		openfile.truncate()
 	return
 
 def service_client(server:TCP_SERVER, args):
@@ -134,5 +147,5 @@ def service_client(server:TCP_SERVER, args):
 	to_file(received, dst=args.file)
 
 	# send packet
-	server.send('sack')
+	server.send('ACK')
 	return
