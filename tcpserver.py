@@ -10,7 +10,7 @@ if __name__ == "__main__":
 	parser.add_argument('file', type=str, help='output file to write to')
 	args = parser.parse_args()
 
-	logging.basicConfig(level=logging.DEBUG)
+	logging.basicConfig(level=logging.INFO)
 
 	server = TCP_SERVER(
 		lsten_port=globals.SERVER_LSTN_PORT,

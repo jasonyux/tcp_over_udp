@@ -22,7 +22,7 @@ class TCPTimer(object):
 			return
 		self.__timer = Timer(self.__interval, self.__function, args=self.__args, kwargs=self.__kwargs)
 		self.__timer.start()
-		logging.info('timer started')
+		logging.debug('timer started')
 		return
 
 	def is_alive(self):

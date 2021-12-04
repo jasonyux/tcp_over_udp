@@ -44,6 +44,8 @@ class TCP_CLIENT(UDP_CLIENT):
 	FIN_WAIT_2 = 3
 	TIME_WAIT = 4
 
+	CLOSE_WAIT_TIME = 30
+
 	def __init__(self, udpl_ip, udpl_port, ack_lstn_port):
 		super().__init__(udpl_ip, udpl_port, ack_lstn_port)
 		self.__seq_num = 0
@@ -195,17 +197,16 @@ class TCP_CLIENT(UDP_CLIENT):
 		return final_ack
 
 	def __time_wait(self, final_ack:Packet):
-		logging.debug('at __time_wait')
 		fin_seq = final_ack.header.seq_num
-		wait_time = 10
-		for i in range(wait_time):
+		start_time = time.time()
+		while time.time() - start_time < TCP_CLIENT.CLOSE_WAIT_TIME:
 			# if received ack for final ack, done
 			packet = self.receive()
 			logging.debug(f'at __time_wait {packet.header}')
 			if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
 				self.__state = TCP_CLIENT.FIN_WAIT_2
 				break
-			time.sleep(1)
+			time.sleep(0.2)
 		self.__state = TCP_CLIENT.CLOSED
 		return
 

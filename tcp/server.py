@@ -213,8 +213,8 @@ def to_file(packet:Packet, dst:str):
 def service_client(server:TCP_SERVER, args):
 	# receive packet
 	received, client_address = server.receive()
-	logging.info(f"[LOG] servicing {client_address}")
-	logging.debug(received)
+	logging.info(f"[LOG] serviced {client_address}")
+	logging.info(received)
 
 	# write to file
 	to_file(received, dst=args.file)
