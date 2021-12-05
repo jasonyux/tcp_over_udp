@@ -60,9 +60,10 @@ class TCP_CLIENT(UDP_CLIENT):
 		return self.__seq_num + num_bytes
 
 	def __post_send(self, packet:Packet):
+		logging.debug("at __post_send")
 		# 1. check if timer is running
 		if not self.__timer.is_alive():
-			self.__timer.start()
+			self.__timer.restart()
 		# 2. update seq_num
 		self.__seq_num = self.__next_seq(packet.payload)
 
@@ -146,6 +147,7 @@ class TCP_CLIENT(UDP_CLIENT):
 		return packet
 
 	def __wait_server_ack(self, fin_packet:Packet):
+		logging.debug(f'at __wait_server_ack')
 		fin_seq = fin_packet.header.seq_num
 		self.__state = TCP_CLIENT.FIN_WAIT_1
 		while self.__state == TCP_CLIENT.FIN_WAIT_1:
@@ -162,6 +164,7 @@ class TCP_CLIENT(UDP_CLIENT):
 		return
 
 	def __send_ack(self):
+		logging.debug("at __send_ack")
 		# 1. construct packet
 		_, src_port = self.get_info()
 		header = TCPHeader(
@@ -191,7 +194,6 @@ class TCP_CLIENT(UDP_CLIENT):
 				final_ack = self.__send_ack()
 				self.__state = TCP_CLIENT.TIME_WAIT
 				break
-			
 			# wait
 			time.sleep(0.2)
 		return final_ack
@@ -219,19 +221,6 @@ class TCP_CLIENT(UDP_CLIENT):
 		self.__time_wait(final_ack)
 		return
 
-	def __post_terminate(self, packet:Packet):
-		# 1. check if timer is running, since we sent something
-		if not self.__timer.is_alive():
-			self.__timer.start()
-		# 2. update seq_num
-		self.__seq_num = self.__next_seq(packet.payload)
-
-		# 3. update window
-		self.__window.append(packet)
-		# 4. wait until received fin from server
-		self.__post_fin(packet)
-		return
-
 	def terminate(self):
 		# 1. construct FIN packet
 		_, src_port = self.get_info()
@@ -247,6 +236,9 @@ class TCP_CLIENT(UDP_CLIENT):
 		# 2. send packet
 		self.send_packet(packet)
 
-		# 3. update seq_num, etc
-		self.__post_terminate(packet)
+		# 3. start timers
+		self.__post_send(packet)
+
+		# 4. wait for acks and etc
+		self.__post_fin(packet)
 		return super().terminate()
