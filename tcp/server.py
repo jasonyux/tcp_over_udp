@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from structure.header import TCPHeader, Flags
 from structure.packet import Packet
-from utils import serialize
+from utils import serialize, util
 from socket import *
 
 class UDP_SERVER():
@@ -55,6 +55,7 @@ class TCP_SERVER(UDP_SERVER):
 		super().__init__(lsten_port, ack_addr, ack_port)
 		self.__seq_num = 0
 		self.__ack_num = 0 # assumes both sides start with seq=0
+		self.__received_seqs = set()
 		self.__state = TCP_SERVER.CLOSED
 
 	def __next_seq(self, payload):
@@ -86,8 +87,17 @@ class TCP_SERVER(UDP_SERVER):
 		return
 
 	def __next_ack(self, packet:Packet):
-		num_bytes = len(packet.payload) or 1
-		return packet.header.seq_num + num_bytes
+		# 1. add the received packet to list of received_seqs
+		self.__received_seqs.add(packet)
+		# 2. find out the largest continously recevied one
+		largest_seq_pkt, self.__received_seqs = util.largest_contionus(
+			self.__received_seqs, 
+			sort_key=lambda pkt: pkt.header.seq_num,
+			next_diff=lambda pkt: len(pkt.payload) or 1,
+			pop=True)
+		# 3. ACK = last_recvned_packet.seq_num + len
+		num_bytes = len(largest_seq_pkt.payload) or 1
+		return largest_seq_pkt.header.seq_num + num_bytes
 	
 	def __post_recv(self, packet:Packet):
 		self.__ack_num = self.__next_ack(packet) # position of next byte
@@ -134,10 +144,11 @@ class TCP_SERVER(UDP_SERVER):
 		while self.__state == TCP_SERVER.LAST_ACK:
 			packet, _ = self.receive()
 			# check if is the ACK for fin
-			logging.debug(f'sent {fin_packet.header} need fin ack wait: {packet.header}')
+			# logging.debug(f'sent {fin_packet.header} need fin ack wait: {packet.header}')
 			if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
 				self.send('')
 				self.__state = TCP_SERVER.CLOSED
+				logging.debug(packet)
 				return packet
 			
 			# wait
@@ -148,6 +159,7 @@ class TCP_SERVER(UDP_SERVER):
 		self.__seq_num = 0
 		self.__ack_num = 0 # assumes both sides start with seq=0
 		self.__state = TCP_SERVER.LISTEN
+		self.__received_seqs = set()
 		pass
 
 	def close_connection(self, packet:Packet):

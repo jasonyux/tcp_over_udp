@@ -52,7 +52,7 @@ class TCP_CLIENT(UDP_CLIENT):
 		self.__ack_num = 0 # assumes both sides start with seq=0
 		self.__timer = timer.TCPTimer(2, self.retransmit)
 		self.__window = []
-		self.__window_size = 2
+		self.__window_size = 10
 		self.__send_base = 0 # smallest unacked seq num
 		self.__state = TCP_CLIENT.ESTABLISHED
 
@@ -68,8 +68,11 @@ class TCP_CLIENT(UDP_CLIENT):
 		self.__window.append(packet)
 		# 3. check if timer is running
 		if not self.__timer.is_alive():
+			self.__timer.restart()
+		# checknig twice in case there is __timer timedout in one of them
+		if not self.__timer.is_alive():
 			logging.debug("restart timer")
-			self.__timer.restart()				
+			self.__timer.restart()			
 		return
 
 	def send(self, payload:str):
@@ -97,11 +100,13 @@ class TCP_CLIENT(UDP_CLIENT):
 	def retransmit(self):
 		logging.debug('retransmitting')
 		# 0. if connection is closed, stop whatever you haven't finished
-		if self.__state == TCP_CLIENT.CLOSED:
+		if self.__state == TCP_CLIENT.CLOSED or len(self.__window) == 0:
 			return
 		# 1. retransmit
 		# self.__window = sorted(self.__window, key= lambda pkt: pkt.header.seq_num)
 		packet = self.__window[0]
+		logging.debug(f'retransmitting {packet}')
+
 		self.send_packet(packet)
 		# 2. restart timer
 		prev_interval = self.__timer.interval
@@ -116,7 +121,6 @@ class TCP_CLIENT(UDP_CLIENT):
 		# 0. If I received a FIN, then ACK will be the same as last one
 		if packet.header.is_fin():
 			self.__ack_num = self.__next_ack(packet) # position of next byte
-			self.__window = []
 		
 		# 1. update window, received ACK
 		if packet.header.ack_num > self.__send_base:
@@ -160,7 +164,6 @@ class TCP_CLIENT(UDP_CLIENT):
 			logging.debug(f'fin ack wait: {packet.header}')
 			if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
 				self.__state = TCP_CLIENT.FIN_WAIT_2
-				self.__window = []
 				return packet
 			
 			# wait
