@@ -32,7 +32,7 @@ def largest_contionus(sequence:set, sort_key=None, next_diff=None, pop=True):
 		sort_key (Callable): given an element of the set, what key should I use to compare
 		next_diff (Callable): given an element of the set, what should be DIFFERENCE with the next expected value
 		pop (bool, optional): Removes the numbers including and below the largest continous 
-		number. Defaults to True.
+		number. Pop=False keeps the larges continous ones. Defaults to True.
 
 	Returns:
 		[type]: [description]
@@ -51,11 +51,15 @@ def largest_contionus(sequence:set, sort_key=None, next_diff=None, pop=True):
 	last_seq = sequence[0]
 	
 	new_sequence = set()
+	if not pop:
+		new_sequence.add(last_seq) # add head
 	for seq in sequence[1:]:
 		# if we have key
 		diff = next_diff(last_seq) if next_diff is not None else 1
 		if sort_key is not None:
 			if sort_key(seq) == sort_key(last_seq) + diff:
+				if not pop:
+					new_sequence.add(seq)
 				last_seq = seq
 			else:
 				if pop:
@@ -64,11 +68,13 @@ def largest_contionus(sequence:set, sort_key=None, next_diff=None, pop=True):
 					break
 		else:
 			if seq == last_seq + diff:
+				if not pop:
+					new_sequence.add(seq)
 				last_seq = seq
 			else:
 				if pop:
 					new_sequence.add(seq)
 				else:
 					break
-	new_sequence.add(last_seq) # so we know where to start
+	new_sequence.add(last_seq)
 	return last_seq, new_sequence

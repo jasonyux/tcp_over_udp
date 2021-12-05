@@ -150,7 +150,7 @@ class TCP_SERVER(UDP_SERVER):
 		while self.__state == TCP_SERVER.LAST_ACK:
 			packet, _ = self.receive()
 			# check if is the ACK for fin
-			logging.debug(f'sent {fin_packet.header} need fin ack wait: {packet.header}')
+			# logging.debug(f'sent {fin_packet.header} need fin ack wait: {packet.header}')
 			if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
 				self.send('')
 				self.__state = TCP_SERVER.CLOSED
@@ -215,18 +215,60 @@ def __insert_content(old_content, start, new_content):
 		content += old_content[end_pos:]
 	return content
 
-def to_file(packet:Packet, dst:str):
-	# if you don't want to overwrite, use r+
-	with open(dst, 'r+') as openfile:
-		content = openfile.read()
-		# insert new content
-		start_pos = packet.header.seq_num
-		content = __insert_content(content, start_pos, packet.payload)
 
-		# write
-		openfile.seek(0)
-		openfile.write(content)
-		openfile.truncate()
+def __to_file(packets:Packet, dst:str):
+	with open(dst, 'a+') as openfile:
+		for packet in packets:
+			logging.debug(f'writing {packet.payload} to {packet.header.seq_num}')
+			openfile.seek(packet.header.seq_num)
+			"""
+			content = openfile.read()
+			# insert new content
+			start_pos = packet.header.seq_num
+			content = __insert_content(content, start_pos, packet.payload)
+			# write
+			openfile.write(content)
+			openfile.truncate()
+			"""
+			openfile.write(packet.payload)
+
+rcvd_seq = set()
+rcvd = []
+last_wrote = 0
+def to_file(packet:Packet, dst:str):
+	global rcvd, last_wrote
+
+	if packet.header.seq_num in rcvd_seq:
+		return
+	
+	rcvd.append(packet)
+	rcvd_seq.add(packet.header.seq_num)
+	# 1. sort
+	rcvd = sorted(rcvd, key=lambda pkt: pkt.header.seq_num)
+	# logging.debug([(pkt.payload, pkt.header.seq_num) for pkt in rcvd])
+
+	# 2. find consecutive ones
+	largest_seq_pkt, ready_packets = util.largest_contionus(
+			set(rcvd), 
+			sort_key=lambda pkt: pkt.header.seq_num,
+			next_diff=lambda pkt: len(pkt.payload) or 1,
+			pop=False)
+	ready_packets = sorted(ready_packets, key=lambda pkt: pkt.header.seq_num)
+	smallest_seq_pkt = None if len(ready_packets) == 0 else ready_packets[0]
+	if  len(ready_packets) == 0 or smallest_seq_pkt.header.seq_num > last_wrote:
+		return
+
+	# 3. write the consecutive ones to file
+	ready_packets = sorted(ready_packets, key=lambda pkt: pkt.header.seq_num)
+	__to_file(ready_packets, dst)
+	last_wrote = largest_seq_pkt.header.seq_num + (len(largest_seq_pkt.payload) or 1)
+
+	# 4. clean up
+	new_rcvd = []
+	for pkt in rcvd:
+		if pkt not in ready_packets:
+			new_rcvd.append(pkt)
+	rcvd = new_rcvd
 	return
 
 def service_client(server:TCP_SERVER, args):
