@@ -84,11 +84,15 @@ class TCP_SERVER(UDP_SERVER):
 
 		# 3. update seq_num, etc
 		self.__post_send(packet)
-		return
+		return packet
 
 	def __next_ack(self, packet:Packet):
 		# 1. add the received packet to list of received_seqs
 		self.__received_seqs.add(packet)
+		rcvd_min_seq = min([pkt.header.seq_num for pkt in self.__received_seqs])
+		if rcvd_min_seq > self.__ack_num:
+			return self.__ack_num # the first packet is out of order
+		
 		# 2. find out the largest continously recevied one
 		largest_seq_pkt, self.__received_seqs = util.largest_contionus(
 			self.__received_seqs, 
@@ -103,6 +107,7 @@ class TCP_SERVER(UDP_SERVER):
 		self.__ack_num = self.__next_ack(packet) # position of next byte
 		if packet.header.is_fin():
 			logging.info('closing connection')
+			logging.info(packet)
 			packet = self.close_connection(packet)
 			logging.info('connection closed')
 		return packet
@@ -132,6 +137,7 @@ class TCP_SERVER(UDP_SERVER):
 		# 2. send packet
 		self.send_packet(packet, client_address)
 		self.__state = TCP_SERVER.LAST_ACK
+		logging.info(f'sent {packet}')
 
 		# 3. update seq_num, etc
 		self.__post_send(packet)
@@ -144,7 +150,7 @@ class TCP_SERVER(UDP_SERVER):
 		while self.__state == TCP_SERVER.LAST_ACK:
 			packet, _ = self.receive()
 			# check if is the ACK for fin
-			# logging.debug(f'sent {fin_packet.header} need fin ack wait: {packet.header}')
+			logging.debug(f'sent {fin_packet.header} need fin ack wait: {packet.header}')
 			if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
 				self.send('')
 				self.__state = TCP_SERVER.CLOSED
@@ -164,7 +170,8 @@ class TCP_SERVER(UDP_SERVER):
 
 	def close_connection(self, packet:Packet):
 		# 1. send ack for fin
-		self.send('')
+		packet = self.send('')
+		logging.info(f'sent {packet}')
 		self.__state = TCP_SERVER.CLOSE_WAIT
 		# 2. sned fin
 		fin_packet = self.__send_fin()

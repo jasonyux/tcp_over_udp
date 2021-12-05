@@ -3,20 +3,27 @@ import logging
 import argparse
 import time
 import threading
+from structure import packet
 
 from tcp.client import TCP_CLIENT
 
-STOP_FLAG = False
 
-def __receive(client):
-	global STOP_FLAG
-	while not STOP_FLAG:
-		received = client.receive() # blocking
-		logging.info(received)
+def __receive(client:TCP_CLIENT):
+	while client.state == TCP_CLIENT.ESTABLISHED:
+		# check again
+		client.rcv_lock.acquire()
+		if client.state == TCP_CLIENT.ESTABLISHED:
+			received = client.receive() # blocking
+			logging.info(f'state {client.state}')
+			if client.state != TCP_CLIENT.ESTABLISHED:
+				client.update_fin_packets(received)
+			logging.info(f'thread recevied: {received}')
+		
+		client.rcv_lock.release()
+		time.sleep(0.1)
 	return
 
 def send_file(client:TCP_CLIENT, args):
-	global STOP_FLAG
 	"""
 	while True:
 		msg = input("Input: ")# + f"; I am at {client.get_info()}"
@@ -40,9 +47,8 @@ def send_file(client:TCP_CLIENT, args):
 			while ret == -1:
 				time.sleep(1)
 				ret = client.send(line)
-		STOP_FLAG = True
-		receiv_thread.join()
 		client.terminate()
+		receiv_thread.join()
 	return
 
 

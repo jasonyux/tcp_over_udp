@@ -1,7 +1,8 @@
 from typing import Callable
+from utils import util
 
 
-class Printable(object):
+class Printable(util.Comparable):
 	def __init__(self) -> None:
 		super().__init__()
 	
@@ -43,6 +44,14 @@ class Flags(Printable):
 	@property
 	def fin(self):
 		return self.__fin
+
+	def __eq__(self, __o: object) -> bool:
+		if not isinstance(__o, Flags):
+			return False
+		return super().__eq__(__o)
+
+	def __hash__(self):
+		return super().__hash__()
 
 	def __int__(self):
 		return self.cwr + self.ece + self.ack + self.syn + self.fin
@@ -111,6 +120,14 @@ class TCPHeader(Header):
 
 	def is_ack(self):
 		return self.__flags.ack == 1
+
+	def __eq__(self, __o: object) -> bool:
+		if not isinstance(__o, TCPHeader):
+			return False
+		return super().__eq__(__o)
+
+	def __hash__(self):
+		return super().__hash__()
 
 
 	

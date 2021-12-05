@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 
 from socket import *
@@ -43,6 +44,7 @@ class TCP_CLIENT(UDP_CLIENT):
 	FIN_WAIT_1 = 2
 	FIN_WAIT_2 = 3
 	TIME_WAIT = 4
+	BEGIN_CLOSE = 5
 
 	CLOSE_WAIT_TIME = 30
 
@@ -55,6 +57,15 @@ class TCP_CLIENT(UDP_CLIENT):
 		self.__window_size = 10
 		self.__send_base = 0 # smallest unacked seq num
 		self.__state = TCP_CLIENT.ESTABLISHED
+
+		# used for threading
+		self.rcv_lock = threading.Lock()
+		self.__thread_fin_packets = []
+		self.__thread_fin_packets_id = set()
+
+	@property
+	def state(self):
+		return self.__state
 
 	def __next_seq(self, payload):
 		num_bytes = len(payload) or 1
@@ -158,16 +169,39 @@ class TCP_CLIENT(UDP_CLIENT):
 		logging.debug(f'at __wait_server_ack')
 		fin_seq = fin_packet.header.seq_num
 		self.__state = TCP_CLIENT.FIN_WAIT_1
+
+		# find FIN ACK packet
+		check_threading = True
 		while self.__state == TCP_CLIENT.FIN_WAIT_1:
+			# wait
+			time.sleep(1)
+			self.rcv_lock.acquire()
+			"""
+			Obtain LOCK here so that:
+			Case 1. the other thread in tcpclient.py obtained the lock and went rcv. 
+				- self.__thread_fin_packets is 100% updated. This works
+			Case 2. I got the lock
+				- the other thread obviously went rcv. Also works
+			"""
+			# check list first
+			if check_threading:
+				for packet in self.__thread_fin_packets:
+					# check if is the ACK for fin
+					logging.debug(f'fin ack wait: checking {packet.header}')
+					if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
+						self.__state = TCP_CLIENT.FIN_WAIT_2
+						self.__thread_fin_packets.remove(packet)
+						self.rcv_lock.release()
+						return packet
+				check_threading = False
+			# receive
 			packet = self.receive()
-			# check if is the ACK for fin
+			self.rcv_lock.release()
+			
 			logging.debug(f'fin ack wait: {packet.header}')
 			if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
 				self.__state = TCP_CLIENT.FIN_WAIT_2
 				return packet
-			
-			# wait
-			time.sleep(0.2)
 		return
 
 	def __send_ack(self):
@@ -192,17 +226,39 @@ class TCP_CLIENT(UDP_CLIENT):
 
 	def __wait_server_fin(self):
 		# wait for fin from server
+		check_thread = True
 		while self.__state == TCP_CLIENT.FIN_WAIT_2:
+			# wait
+			time.sleep(1)
+			"""
+			Obtain LOCK here so that:
+			Case 1. the other thread in tcpclient.py obtained the lock and went rcv. 
+				- self.__thread_fin_packets is 100% updated. This works
+			Case 2. I got the lock
+				- the other thread obviously went rcv. Also works
+			"""
+			self.rcv_lock.acquire()
+			if check_thread:
+				logging.debug(f'fin wait thread')
+				for packet in self.__thread_fin_packets:
+					if packet.header.is_fin():
+						# send ack
+						final_ack = self.__send_ack()
+						self.__state = TCP_CLIENT.TIME_WAIT
+						self.rcv_lock.release()
+						return
+				check_thread = False
+			# try to receive
 			packet = self.receive()
+			self.rcv_lock.release()
 			# check if it is fin
 			logging.debug(f'fin wait: {packet.header}')
 			if packet.header.is_fin():
 				# send ack
 				final_ack = self.__send_ack()
-				self.__state = TCP_CLIENT.TIME_WAIT
 				break
-			# wait
-			time.sleep(0.2)
+
+		self.__state = TCP_CLIENT.TIME_WAIT
 		return final_ack
 
 	def __time_wait(self, final_ack:Packet):
@@ -211,7 +267,10 @@ class TCP_CLIENT(UDP_CLIENT):
 		start_time = time.time()
 		while time.time() - start_time < TCP_CLIENT.CLOSE_WAIT_TIME:
 			# if received ack for final ack, done
+			self.rcv_lock.acquire()
 			packet = self.receive()
+			self.rcv_lock.release()
+
 			logging.debug(f'at __time_wait with {packet.header}')
 			if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
 				self.__state = TCP_CLIENT.FIN_WAIT_2
@@ -230,6 +289,14 @@ class TCP_CLIENT(UDP_CLIENT):
 		return
 
 	def terminate(self):
+		# 0. wait for all other retransmission to be done
+		while len(self.__window) > 0:
+			# the other thread will timeout and retransmit
+			time.sleep(1)
+
+		# change state so that the other thread will not receive packets
+		self.__state = TCP_CLIENT.BEGIN_CLOSE
+
 		# 1. construct FIN packet
 		_, src_port = self.get_info()
 		header = TCPHeader(
@@ -240,6 +307,7 @@ class TCP_CLIENT(UDP_CLIENT):
 			_flags=Flags(cwr=0, ece=0, ack=0, syn=0, fin=1),
 			rcvwd=9)
 		packet = Packet(header, '')
+		self.__fin_start_seq = self.__seq_num
 
 		# 2. send packet
 		self.send_packet(packet)
@@ -250,3 +318,17 @@ class TCP_CLIENT(UDP_CLIENT):
 		# 4. wait for acks and etc
 		self.__post_fin(packet)
 		return super().terminate()
+
+	# for multithreading
+	def update_fin_packets(self, packet:Packet):
+		# in case if the thread grabbed one of those packets, client won't be able to terminate
+		# if packet.header.ack_num >= self.__fin_start_seq or packet.header.seq_num >= self.__fin_start_seq:
+		logging.debug("adding in update_fin_packets")
+		if len(self.__thread_fin_packets) == 0:
+			logging.debug("added")
+			self.__thread_fin_packets.append(packet)
+		else:
+			if packet not in self.__thread_fin_packets:
+				logging.debug("added")
+				self.__thread_fin_packets.append(packet)
+		return

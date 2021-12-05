@@ -1,6 +1,7 @@
 from .header import TCPHeader
+from utils import util
 
-class Packet(object):
+class Packet(util.Comparable):
 	def __init__(self, header:TCPHeader, payload:str) -> None:
 		self.__header = header
 		self.__payload = payload
