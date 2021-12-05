@@ -52,6 +52,7 @@ class TCP_CLIENT(UDP_CLIENT):
 		self.__ack_num = 0 # assumes both sides start with seq=0
 		self.__timer = timer.TCPTimer(2, self.retransmit)
 		self.__window = []
+		self.__window_size = 2
 		self.__send_base = 0 # smallest unacked seq num
 		self.__state = TCP_CLIENT.ESTABLISHED
 
@@ -61,17 +62,20 @@ class TCP_CLIENT(UDP_CLIENT):
 
 	def __post_send(self, packet:Packet):
 		logging.debug("at __post_send")
-		# 1. check if timer is running
-		if not self.__timer.is_alive():
-			self.__timer.restart()
-		# 2. update seq_num
+		# 1. update seq_num
 		self.__seq_num = self.__next_seq(packet.payload)
-
-		# 3. update window
+		# 2. update window
 		self.__window.append(packet)
+		# 3. check if timer is running
+		if not self.__timer.is_alive():
+			logging.debug("restart timer")
+			self.__timer.restart()				
 		return
 
 	def send(self, payload:str):
+		# 0. consult window
+		if len(self.__window) == self.__window_size:
+			return -1
 		# 1. construct packet
 		_, src_port = self.get_info()
 		header = TCPHeader(
@@ -88,7 +92,7 @@ class TCP_CLIENT(UDP_CLIENT):
 
 		# 3. update seq_num, etc
 		self.__post_send(packet)
-		return
+		return 0
 
 	def retransmit(self):
 		logging.debug('retransmitting')
@@ -199,12 +203,13 @@ class TCP_CLIENT(UDP_CLIENT):
 		return final_ack
 
 	def __time_wait(self, final_ack:Packet):
+		logging.debug(f'at __time_wait')
 		fin_seq = final_ack.header.seq_num
 		start_time = time.time()
 		while time.time() - start_time < TCP_CLIENT.CLOSE_WAIT_TIME:
 			# if received ack for final ack, done
 			packet = self.receive()
-			logging.debug(f'at __time_wait {packet.header}')
+			logging.debug(f'at __time_wait with {packet.header}')
 			if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
 				self.__state = TCP_CLIENT.FIN_WAIT_2
 				break
