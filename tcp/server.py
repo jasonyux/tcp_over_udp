@@ -36,7 +36,12 @@ class UDP_SERVER():
 	def receive_packet(self):
 		server = self.__socket
 		raw_packet, client_address = server.recvfrom(self.__buffersize)
-		return serialize.deserialize(raw_packet), client_address
+		try:
+			# e.g. corruption
+			packet = serialize.deserialize(raw_packet)
+		except:
+			packet = None
+		return packet, client_address
 
 	def get_info(self):
 		info = self.__socket.getsockname()
@@ -78,6 +83,7 @@ class TCP_SERVER(UDP_SERVER):
 			_flags=Flags(cwr=10, ece=0, ack=1, syn=0,fin=0), 
 			rcvwd=10)
 		packet = Packet(header, payload)
+		packet.compute_checksum()
 
 		# 2. send packet
 		self.send_packet(packet, client_address)
@@ -115,9 +121,12 @@ class TCP_SERVER(UDP_SERVER):
 	def receive(self):
 		# 1. receive packet
 		packet, client_address = self.receive_packet()
-
-		# 2. update ack_num
-		packet = self.__post_recv(packet)
+		# 2. check if packet is corrupt
+		if packet is not None and not packet.is_corrupt():
+			# 3. if not, update ack_num
+			packet = self.__post_recv(packet)
+		else:
+			packet = None
 		return packet, client_address
 
 	def __send_fin(self):
@@ -133,6 +142,7 @@ class TCP_SERVER(UDP_SERVER):
 			_flags=Flags(cwr=10, ece=0, ack=0, syn=0, fin=1), 
 			rcvwd=10)
 		packet = Packet(header, '')
+		packet.compute_checksum()
 
 		# 2. send packet
 		self.send_packet(packet, client_address)
@@ -149,13 +159,15 @@ class TCP_SERVER(UDP_SERVER):
 		fin_seq = fin_packet.header.seq_num
 		while self.__state == TCP_SERVER.LAST_ACK:
 			packet, _ = self.receive()
-			# check if is the ACK for fin
-			# logging.debug(f'sent {fin_packet.header} need fin ack wait: {packet.header}')
-			if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
-				self.send('')
-				self.__state = TCP_SERVER.CLOSED
-				logging.debug(packet)
-				return packet
+			# check if packet is corrupt
+			if packet is not None:
+				# check if is the ACK for fin
+				# logging.debug(f'sent {fin_packet.header} need fin ack wait: {packet.header}')
+				if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
+					self.send('')
+					self.__state = TCP_SERVER.CLOSED
+					logging.debug(packet)
+					return packet
 			
 			# wait
 			time.sleep(0.2)
@@ -275,11 +287,12 @@ def service_client(server:TCP_SERVER, args):
 	# receive packet
 	received, client_address = server.receive()
 	logging.info(f"[LOG] serviced {client_address}")
-	logging.info(received)
+	logging.info(f"{received or 'Corrupted'}")
 
-	# write to file
-	to_file(received, dst=args.file)
+	if received is not None:
+		# write to file
+		to_file(received, dst=args.file)
 
-	# send packet
-	server.send('ACK')
+	# send ACK
+	server.send('')
 	return

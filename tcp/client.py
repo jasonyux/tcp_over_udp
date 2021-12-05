@@ -100,6 +100,7 @@ class TCP_CLIENT(UDP_CLIENT):
 			_flags=Flags(cwr=10, ece=0, ack=0, syn=0,fin=0),
 			rcvwd=9)
 		packet = Packet(header, payload)
+		packet.compute_checksum()
 
 		# 2. send packet
 		self.send_packet(packet)
@@ -216,6 +217,7 @@ class TCP_CLIENT(UDP_CLIENT):
 			_flags=Flags(cwr=10, ece=0, ack=1, syn=0,fin=0),
 			rcvwd=9)
 		packet = Packet(header, '')
+		packet.compute_checksum()
 
 		# 2. send packet
 		self.send_packet(packet)
@@ -307,6 +309,7 @@ class TCP_CLIENT(UDP_CLIENT):
 			_flags=Flags(cwr=0, ece=0, ack=0, syn=0, fin=1),
 			rcvwd=9)
 		packet = Packet(header, '')
+		packet.compute_checksum()
 		self.__fin_start_seq = self.__seq_num
 
 		# 2. send packet

@@ -1,3 +1,5 @@
+import logging
+
 from .header import TCPHeader
 from utils import util
 
@@ -21,6 +23,24 @@ class Packet(util.Comparable):
 	@payload.setter
 	def payload(self, value):
 		self.__payload = value
+
+	def compute_checksum(self):
+		self.__header.set_checksum(self.__compute_checksum())
+		return
+
+	def __compute_checksum(self):
+		prev_checksum = self.__header.checksum
+		self.__header.set_checksum(value=0)
+		header_checksum = self.header.compute_checksum()
+		total = header_checksum + sum([ord(c) for c in self.payload])
+		# reset
+		self.__header.set_checksum(prev_checksum)
+		return total
+
+	def is_corrupt(self):
+		current_checksum = self.__compute_checksum()
+		logging.debug(f'current {current_checksum} vs {self.__header.checksum}')
+		return current_checksum != self.__header.checksum
 
 	def __str__(self):
 		content = f"""

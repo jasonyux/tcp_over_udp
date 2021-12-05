@@ -81,7 +81,7 @@ class TCPHeader(Header):
 		self.__rcvwd = rcvwd
 		self.__checksum = 0
 		self.__header_len = 20
-		self.__checksum = self.compute_checksum()
+		# self.__checksum = self.compute_checksum()
 	
 	@property
 	def src_port(self):
@@ -114,6 +114,10 @@ class TCPHeader(Header):
 	@property
 	def header_len(self):
 		return self.__header_len
+
+	def set_checksum(self, value):
+		self.__checksum = value
+		return
 
 	def is_fin(self):
 		return self.__flags.fin == 1
