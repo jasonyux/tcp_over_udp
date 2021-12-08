@@ -6,6 +6,7 @@ from socket import *
 from structure.packet import Packet
 from structure.header import TCPHeader, Flags
 from utils import serialize, timer
+from utils.sampler import RTTSampler
 
 class UDP_CLIENT():
 	def __init__(self, udpl_ip, udpl_port, ack_lstn_port):
@@ -46,17 +47,22 @@ class TCP_CLIENT(UDP_CLIENT):
 	TIME_WAIT = 4
 	BEGIN_CLOSE = 5
 
+	INIT_TIMEOUT_INTERVAL = 1
 	CLOSE_WAIT_TIME = 30
 
 	def __init__(self, udpl_ip, udpl_port, ack_lstn_port):
 		super().__init__(udpl_ip, udpl_port, ack_lstn_port)
 		self.__seq_num = 0
 		self.__ack_num = 0 # assumes both sides start with seq=0
-		self.__timer = timer.TCPTimer(2, self.retransmit)
+		self.__timer = timer.TCPTimer(TCP_CLIENT.INIT_TIMEOUT_INTERVAL, self.retransmit)
 		self.__window = []
 		self.__window_size = 10
 		self.__send_base = 0 # smallest unacked seq num
 		self.__state = TCP_CLIENT.ESTABLISHED
+
+		# used for RTT sampler
+		self.__waiting_packets = {}
+		self.__rtt_sampling = RTTSampler(TCP_CLIENT.INIT_TIMEOUT_INTERVAL)
 
 		# used for threading
 		self.rcv_lock = threading.Lock()
@@ -79,11 +85,19 @@ class TCP_CLIENT(UDP_CLIENT):
 		self.__window.append(packet)
 		# 3. check if timer is running
 		if not self.__timer.is_alive():
-			self.__timer.restart()
+			self.__timer.restart(new_interval=self.__rtt_sampling.get_interval())
 		# checknig twice in case there is __timer timedout in one of them
 		if not self.__timer.is_alive():
 			logging.debug("restart timer")
-			self.__timer.restart()			
+			self.__timer.restart(new_interval=self.__rtt_sampling.get_interval())
+		# 4. update RTT sampler
+		packet_ack = packet.header.seq_num + (len(packet.payload) or 1)
+		start_time = self.__waiting_packets.get(packet_ack)
+		if start_time is None:
+			self.__waiting_packets[packet_ack] = time.time()
+			logging.debug(f'adding __waiting_packets {packet_ack} for payload={packet.payload} at {time.time()}')
+		else: # this should not happen
+			logging.error(f'self.__waiting_packets already has {packet}')
 		return
 
 	def send(self, payload:str):
@@ -123,6 +137,13 @@ class TCP_CLIENT(UDP_CLIENT):
 		# 2. restart timer
 		prev_interval = self.__timer.interval
 		self.__timer.restart(prev_interval)
+
+		# 3. do not track RTT for retransmitted packets
+		packet_ack = packet.header.seq_num + (len(packet.payload) or 1)
+		start_time = self.__waiting_packets.get(packet_ack)
+		if start_time is not None:
+			logging.debug(f'removing {packet.header.seq_num}, now {self.__waiting_packets.keys()}')
+			self.__waiting_packets.pop(packet_ack, None)
 		return
 
 	def __next_ack(self, packet:Packet):
@@ -136,6 +157,7 @@ class TCP_CLIENT(UDP_CLIENT):
 		
 		# 1. update window, received ACK
 		if packet.header.ack_num > self.__send_base:
+			# 2. new ACK received
 			self.__send_base = packet.header.ack_num
 			logging.debug(f"post_recv, send_base={self.__send_base}")
 			# update packets in window
@@ -147,16 +169,26 @@ class TCP_CLIENT(UDP_CLIENT):
 			self.__window = new_window
 			# if still some unacked packets
 			if len(self.__window) > 0:
-				self.__timer.restart()
+				self.__timer.restart(new_interval=self.__rtt_sampling.get_interval())
 			# all done
 			else:
 				self.__timer.cancel()
 		
 			self.__ack_num = self.__next_ack(packet) # position of next byte
+
+			# 3. update RTT
+			start_time = self.__waiting_packets.get(packet.header.ack_num)
+			if start_time is not None: # not retransmitted
+				end_time = time.time()
+				self.__rtt_sampling.update_interval(end_time - start_time)
+				self.__waiting_packets.pop(packet.header.ack_num, None)
+				logging.debug(f'first time received {packet.header.ack_num} at {end_time}, now {self.__waiting_packets.keys()}')
+			return
 		else:
 			# TODO:duplicate ack, fast retransmit possible
 			pass
 		return
+		
 
 	def receive(self):
 		# 1. receive ACK packet
