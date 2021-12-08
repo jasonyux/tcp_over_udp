@@ -63,6 +63,13 @@ class TCP_SERVER(UDP_SERVER):
 		self.__received_seqs = set()
 		self.__state = TCP_SERVER.CLOSED
 
+		# for fin specifically
+		self.__fin_packets = {}
+
+	@property
+	def state(self):
+		return self.__state
+
 	def __next_seq(self, payload):
 		num_bytes = len(payload) or 1
 		return self.__seq_num + num_bytes
@@ -94,8 +101,12 @@ class TCP_SERVER(UDP_SERVER):
 
 	def __next_ack(self, packet:Packet):
 		# 1. add the received packet to list of received_seqs
+		if packet.header.seq_num < self.__ack_num:
+			return self.__ack_num
+		
 		self.__received_seqs.add(packet)
 		rcvd_min_seq = min([pkt.header.seq_num for pkt in self.__received_seqs])
+		logging.debug(f"rcvd_min_seq={rcvd_min_seq} and self.__ack_num={self.__ack_num}")
 		if rcvd_min_seq > self.__ack_num:
 			return self.__ack_num # the first packet is out of order
 		
@@ -105,13 +116,18 @@ class TCP_SERVER(UDP_SERVER):
 			sort_key=lambda pkt: pkt.header.seq_num,
 			next_diff=lambda pkt: len(pkt.payload) or 1,
 			pop=True)
+
 		# 3. ACK = last_recvned_packet.seq_num + len
 		num_bytes = len(largest_seq_pkt.payload) or 1
+		logging.debug(f"new_ack_cumu={largest_seq_pkt.header.seq_num + num_bytes}")
 		return largest_seq_pkt.header.seq_num + num_bytes
 	
 	def __post_recv(self, packet:Packet):
+		logging.debug(f"current seq_num={self.__seq_num}, old_ack_num={self.__ack_num}")
+		
 		self.__ack_num = self.__next_ack(packet) # position of next byte
-		if packet.header.is_fin():
+		logging.debug(f'sender new cumu ack {self.__ack_num}')
+		if packet.header.is_fin() and packet.header.seq_num + 1 >= self.__ack_num:
 			logging.info('closing connection')
 			logging.info(packet)
 			packet = self.close_connection(packet)
@@ -131,6 +147,7 @@ class TCP_SERVER(UDP_SERVER):
 
 	def __send_fin(self):
 		logging.debug('sending fin')
+		logging.debug(f"current seq_num={self.__seq_num}, old_ack_num={self.__ack_num}")
 		# 1. construct packet
 		client_address = self.ack_addr
 		_, src_port = self.get_info()
@@ -148,6 +165,8 @@ class TCP_SERVER(UDP_SERVER):
 		self.send_packet(packet, client_address)
 		self.__state = TCP_SERVER.LAST_ACK
 		logging.info(f'sent {packet}')
+		# store for potential retransmit
+		self.__fin_packets[packet.header.seq_num] = packet
 
 		# 3. update seq_num, etc
 		self.__post_send(packet)
@@ -158,17 +177,22 @@ class TCP_SERVER(UDP_SERVER):
 		
 		fin_seq = fin_packet.header.seq_num
 		while self.__state == TCP_SERVER.LAST_ACK:
-			packet, _ = self.receive()
+			packet, client_address = self.receive_packet()
 			# check if packet is corrupt
-			if packet is not None:
+			if packet is not None and not packet.is_corrupt():
 				# check if is the ACK for fin
-				# logging.debug(f'sent {fin_packet.header} need fin ack wait: {packet.header}')
-				if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
+				logging.debug(f'sent {fin_packet.header} need fin ack wait: {packet.header}')
+				if packet.header.ack_num >= fin_seq + 1 and packet.header.is_ack():
 					self.send('')
 					self.__state = TCP_SERVER.CLOSED
-					logging.debug(packet)
+					logging.debug(f"sent: {packet}")
 					return packet
-			
+				else:
+					packet = self.__fin_packets.get(packet.header.ack_num)
+					if packet is None:
+						logging.error(f"No fix for packet {packet}, I have {self.__fin_packets}")
+					else:
+						self.send_packet(packet, client_address)
 			# wait
 			time.sleep(0.2)
 		return
@@ -184,14 +208,20 @@ class TCP_SERVER(UDP_SERVER):
 		# 1. send ack for fin
 		packet = self.send('')
 		logging.info(f'sent {packet}')
+		# store for potential retransmit
+		self.__fin_packets[packet.header.seq_num] = packet
 		self.__state = TCP_SERVER.CLOSE_WAIT
+
 		# 2. sned fin
 		fin_packet = self.__send_fin()
+
 		# 3. wait for ack
-		fin_ack = self.__wait_fin_ack(fin_packet)
+		# fin_ack = self.__wait_fin_ack(fin_packet) #TODO
 		# 4. reset
 		self.reset()
-		return fin_ack
+		
+		logging.debug(f"reset to {self.__seq_num} and {self.__ack_num}")
+		return None
 
 	def start(self, args):
 		server = self._socket
@@ -287,12 +317,13 @@ def service_client(server:TCP_SERVER, args):
 	# receive packet
 	received, client_address = server.receive()
 	logging.info(f"[LOG] serviced {client_address}")
-	logging.info(f"{received or 'Corrupted'}")
+	logging.info(f"{received or 'Discarded'}")
 
 	if received is not None:
 		# write to file
 		to_file(received, dst=args.file)
 
 	# send ACK
-	server.send('')
+	if server.state == TCP_SERVER.ESTABLISHED:
+		server.send('')
 	return

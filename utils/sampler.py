@@ -11,9 +11,21 @@ class RTTSampler(object):
 		self.__dev_rtt = 0
 		self.__beta = 0.25
 		self.__gamma = 2
+
+		# used for doubling timeout
+		self.__within_timeout = False
 		pass
+	
+	def double_interval(self, enabled=True, restore=True):
+		self.__within_timeout = enabled
+		if enabled is False and restore: # when sending new packets, do not restore
+			self.__timeout_interval = round(self.__estimated_rtt + self.__gamma * self.__dev_rtt, 3)
+		return
 		
 	def update_interval(self, sample_rtt):
+		# we received something, switch back to using normal timeout
+		self.__within_timeout = False
+
 		alpha = self.__alpha
 		beta = self.__beta
 		self.__estimated_rtt = (1-alpha) * self.__estimated_rtt + alpha * sample_rtt
@@ -28,5 +40,6 @@ class RTTSampler(object):
 		return
 
 	def get_interval(self):
-		# return self.__timeout_interval
-		return 2
+		if self.__within_timeout:
+			self.__timeout_interval *= 2
+		return self.__timeout_interval

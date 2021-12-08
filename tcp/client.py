@@ -56,7 +56,7 @@ class TCP_CLIENT(UDP_CLIENT):
 		self.__ack_num = 0 # assumes both sides start with seq=0
 		self.__timer = timer.TCPTimer(TCP_CLIENT.INIT_TIMEOUT_INTERVAL, self.retransmit)
 		self.__window = []
-		self.__window_size = 10
+		self.__window_size = 3
 		self.__send_base = 0 # smallest unacked seq num
 		self.__state = TCP_CLIENT.ESTABLISHED
 
@@ -65,6 +65,7 @@ class TCP_CLIENT(UDP_CLIENT):
 		self.__rtt_sampling = RTTSampler(TCP_CLIENT.INIT_TIMEOUT_INTERVAL)
 
 		# used for threading
+		self.window_lock = threading.Lock()
 		self.rcv_lock = threading.Lock()
 		self.__thread_fin_packets = []
 		self.__thread_fin_packets_id = set()
@@ -81,9 +82,13 @@ class TCP_CLIENT(UDP_CLIENT):
 		logging.debug("at __post_send")
 		# 1. update seq_num
 		self.__seq_num = self.__next_seq(packet.payload)
+
 		# 2. update window
+		self.window_lock.acquire()
 		self.__window.append(packet)
+
 		# 3. check if timer is running
+		self.__rtt_sampling.double_interval(enabled=False, restore=False)
 		if not self.__timer.is_alive():
 			self.__timer.restart(new_interval=self.__rtt_sampling.get_interval())
 		# checknig twice in case there is __timer timedout in one of them
@@ -98,6 +103,7 @@ class TCP_CLIENT(UDP_CLIENT):
 			logging.debug(f'adding __waiting_packets {packet_ack} for payload={packet.payload} at {time.time()}')
 		else: # this should not happen
 			logging.error(f'self.__waiting_packets already has {packet}')
+		self.window_lock.release()
 		return
 
 	def send(self, payload:str):
@@ -126,24 +132,33 @@ class TCP_CLIENT(UDP_CLIENT):
 	def retransmit(self):
 		logging.debug('retransmitting')
 		# 0. if connection is closed, stop whatever you haven't finished
+		self.window_lock.acquire() # need to read
 		if self.__state == TCP_CLIENT.CLOSED or len(self.__window) == 0:
+			self.window_lock.release()
 			return
 		# 1. retransmit
 		# self.__window = sorted(self.__window, key= lambda pkt: pkt.header.seq_num)
+		
 		packet = self.__window[0]
 		logging.debug(f'retransmitting {packet}')
-
 		self.send_packet(packet)
-		# 2. restart timer
-		prev_interval = self.__timer.interval
-		self.__timer.restart(prev_interval)
 
-		# 3. do not track RTT for retransmitted packets
-		packet_ack = packet.header.seq_num + (len(packet.payload) or 1)
-		start_time = self.__waiting_packets.get(packet_ack)
-		if start_time is not None:
-			logging.debug(f'removing {packet.header.seq_num}, now {self.__waiting_packets.keys()}')
-			self.__waiting_packets.pop(packet_ack, None)
+		# 2. restart timer
+		self.__rtt_sampling.double_interval() # doubling timeout interval
+		new_timeout_interval = self.__rtt_sampling.get_interval()
+		logging.debug(f'doubling to {new_timeout_interval}')
+		self.__timer.restart(new_interval=new_timeout_interval)
+
+		# 3. do not track RTT for retransmitted packets and all packets inside the window
+		tmp = [pkt.header.seq_num + (len(pkt.payload) or 1) for pkt in self.__window]
+		logging.debug(f"currently having {tmp}")
+		for unacked in self.__window:
+			packet_ack = unacked.header.seq_num + (len(unacked.payload) or 1)
+			start_time = self.__waiting_packets.get(packet_ack)
+			if start_time is not None:
+				self.__waiting_packets.pop(packet_ack, None)
+		self.window_lock.release()
+		logging.debug(f'now {self.__waiting_packets.keys()}')
 		return
 
 	def __next_ack(self, packet:Packet):
@@ -155,18 +170,23 @@ class TCP_CLIENT(UDP_CLIENT):
 		if packet.header.is_fin():
 			self.__ack_num = self.__next_ack(packet) # position of next byte
 		
+		logging.debug(f"{packet.header.ack_num} > send_base: {self.__send_base}")
+		self.__rtt_sampling.double_interval(enabled=False)
 		# 1. update window, received ACK
 		if packet.header.ack_num > self.__send_base:
 			# 2. new ACK received
+			
 			self.__send_base = packet.header.ack_num
 			logging.debug(f"post_recv, send_base={self.__send_base}")
 			# update packets in window
+			self.window_lock.acquire()
 			new_window = []
 			for unacked in self.__window:
 				# cumulative ack
 				if unacked.header.seq_num >= self.__send_base:
 					new_window.append(unacked)
 			self.__window = new_window
+			self.window_lock.release()
 			# if still some unacked packets
 			if len(self.__window) > 0:
 				self.__timer.restart(new_interval=self.__rtt_sampling.get_interval())
@@ -221,9 +241,10 @@ class TCP_CLIENT(UDP_CLIENT):
 				for packet in self.__thread_fin_packets:
 					# check if is the ACK for fin
 					logging.debug(f'fin ack wait: checking {packet.header}')
-					if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
+					if packet.header.ack_num >= fin_seq + 1 and packet.header.is_ack():
 						self.__state = TCP_CLIENT.FIN_WAIT_2
 						self.__thread_fin_packets.remove(packet)
+						self.__window = []
 						self.rcv_lock.release()
 						return packet
 				check_threading = False
@@ -273,11 +294,11 @@ class TCP_CLIENT(UDP_CLIENT):
 			"""
 			self.rcv_lock.acquire()
 			if check_thread:
-				logging.debug(f'fin wait thread')
+				logging.debug(f'fin wait check thread')
 				for packet in self.__thread_fin_packets:
 					if packet.header.is_fin():
 						# send ack
-						final_ack = self.__send_ack()
+						# final_ack = self.__send_ack()
 						self.__state = TCP_CLIENT.TIME_WAIT
 						self.rcv_lock.release()
 						return
@@ -289,28 +310,38 @@ class TCP_CLIENT(UDP_CLIENT):
 			logging.debug(f'fin wait: {packet.header}')
 			if packet.header.is_fin():
 				# send ack
-				final_ack = self.__send_ack()
+				# final_ack = self.__send_ack()
 				break
 
 		self.__state = TCP_CLIENT.TIME_WAIT
-		return final_ack
+		#return final_ack
+		return None
 
 	def __time_wait(self, final_ack:Packet):
 		logging.debug(f'at __time_wait')
+		self.rcv_lock.acquire()
 		fin_seq = final_ack.header.seq_num
 		start_time = time.time()
 		while time.time() - start_time < TCP_CLIENT.CLOSE_WAIT_TIME:
 			# if received ack for final ack, done
-			self.rcv_lock.acquire()
 			packet = self.receive()
-			self.rcv_lock.release()
 
 			logging.debug(f'at __time_wait with {packet.header}')
-			if packet.header.ack_num == fin_seq + 1 and packet.header.is_ack():
+			if packet.header.ack_num >= fin_seq + 1 and packet.header.is_ack():
 				self.__state = TCP_CLIENT.FIN_WAIT_2
+				self.__window = []
 				break
 			time.sleep(0.2)
 		self.__state = TCP_CLIENT.CLOSED
+		self.rcv_lock.release()
+		return
+
+	def reset(self):
+		self.__state = TCP_CLIENT.CLOSED
+		self.window_lock.acquire()
+		self.__timer.cancel()
+		self.__window = []
+		self.window_lock.release()
 		return
 
 	def __post_fin(self, packet:Packet):
@@ -319,7 +350,8 @@ class TCP_CLIENT(UDP_CLIENT):
 		# 2. wait for FIN from server
 		final_ack = self.__wait_server_fin()
 		# 3. time wait
-		self.__time_wait(final_ack)
+		# self.__time_wait(final_ack) #TODO
+		self.reset()
 		return
 
 	def terminate(self):

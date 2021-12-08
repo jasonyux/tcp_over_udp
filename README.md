@@ -5,7 +5,7 @@ computer networks: programming assignment 2
 Below is the setup for local testing
 1. Starting up the `newudpl` proxy server
 	```bash
-	➜ ./newudpl -i 127.0.0.1:41198 -O 50 -L 50 -B 20
+	➜ ./newudpl -i 127.0.0.1:41198 -O 50 -L 50 -B 20 -d 2
 	Network emulator with UDP link
 	Copyright (c) 2021 by Columbia University; all rights reserved
 
@@ -16,7 +16,7 @@ Below is the setup for local testing
 		localhost(127.0.0.1)/41194
 
 	emulating speed  : 1000 kb/s
-	delay            : 0.000000 sec
+	delay            : 2.000000 sec
 	Ethernet         : 10 Mb/s
 	Queue buffersize : 8192 bytes
 
