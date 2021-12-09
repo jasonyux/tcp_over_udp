@@ -1,6 +1,4 @@
-import pickle
 import struct
-import logging
 from structure.packet import Packet
 from structure.header import TCPHeader, Flags
 

@@ -41,8 +41,13 @@ def send_file(client:TCP_CLIENT, args):
 def init_args(args):
 	"""Check whether if arguments specified are expected
 	"""
+	# check window size
 	if args.window_size >= globals.MSS and args.window_size % globals.MSS == 0:
 		args.window_size = args.window_size / globals.MSS
+	else:
+		raise Exception(f"Please specify to be '{args.window_size}' to be integer multiple of MSS={globals.MSS}")
+	
+	# check file existence
 	if not path.exists(args.file):
 		raise Exception(f"File: '{args.file}' does not exist!")
 	return args
