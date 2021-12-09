@@ -88,7 +88,7 @@ class TCP_SERVER(UDP_SERVER):
 			dst_port=client_address[1], 
 			seq_num=self.__seq_num, 
 			ack_num=self.__ack_num, 
-			_flags=Flags(cwr=10, ece=0, ack=1, syn=0,fin=0), 
+			_flags=Flags(cwr=0, ece=0, ack=1, syn=0,fin=0), 
 			rcvwd=10)
 		packet = Packet(header, payload)
 		packet.compute_checksum()

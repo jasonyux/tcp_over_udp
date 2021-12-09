@@ -117,8 +117,8 @@ class TCP_CLIENT(UDP_CLIENT):
 			dst_port=self.dst_addr[1],
 			seq_num=self.__seq_num, 
 			ack_num=self.__ack_num, 
-			_flags=Flags(cwr=10, ece=0, ack=0, syn=0,fin=0),
-			rcvwd=9)
+			_flags=Flags(cwr=0, ece=0, ack=0, syn=0,fin=0),
+			rcvwd=10)
 		packet = Packet(header, payload)
 		packet.compute_checksum()
 
@@ -267,8 +267,8 @@ class TCP_CLIENT(UDP_CLIENT):
 			dst_port=self.dst_addr[1], 
 			seq_num=self.__seq_num, 
 			ack_num=self.__ack_num, 
-			_flags=Flags(cwr=10, ece=0, ack=1, syn=0,fin=0),
-			rcvwd=9)
+			_flags=Flags(cwr=0, ece=0, ack=1, syn=0,fin=0),
+			rcvwd=10)
 		packet = Packet(header, '')
 		packet.compute_checksum()
 
@@ -371,7 +371,7 @@ class TCP_CLIENT(UDP_CLIENT):
 			seq_num=self.__seq_num, 
 			ack_num=self.__ack_num, 
 			_flags=Flags(cwr=0, ece=0, ack=0, syn=0, fin=1),
-			rcvwd=9)
+			rcvwd=10)
 		packet = Packet(header, b'')
 		packet.compute_checksum()
 		self.__fin_start_seq = self.__seq_num
