@@ -40,13 +40,15 @@ def send_file(client:TCP_CLIENT, args):
 			break
 	"""
 	receiv_thread = threading.Thread(target=__receive, args=(client,))
-	with open(args.file, 'r') as openfile:
+	with open(args.file, 'rb') as openfile:
 		receiv_thread.start()
-		for line in openfile:
-			ret = client.send(line)
+		data = openfile.read(globals.MSS)
+		while data != b'':
+			ret = client.send(data)
 			while ret == -1:
 				time.sleep(1)
-				ret = client.send(line)
+				ret = client.send(data)
+			data = openfile.read(globals.MSS)
 		client.terminate()
 		receiv_thread.join()
 	return

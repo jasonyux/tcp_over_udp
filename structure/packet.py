@@ -32,7 +32,8 @@ class Packet(util.Comparable):
 		prev_checksum = self.__header.checksum
 		self.__header.set_checksum(value=0)
 		header_checksum = self.header.compute_checksum()
-		total = header_checksum + sum([ord(c) for c in self.payload])
+		# total = header_checksum + sum([ord(c) for c in self.payload])
+		total = header_checksum + sum(self.__payload)
 		# reset
 		self.__header.set_checksum(prev_checksum)
 		return total

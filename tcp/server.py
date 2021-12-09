@@ -259,7 +259,7 @@ def __insert_content(old_content, start, new_content):
 
 
 def __to_file(packets:Packet, dst:str):
-	with open(dst, 'a+') as openfile:
+	with open(dst, 'ab+') as openfile:
 		for packet in packets:
 			logging.debug(f'writing {packet.payload} to {packet.header.seq_num}')
 			openfile.seek(packet.header.seq_num)
@@ -317,7 +317,7 @@ def service_client(server:TCP_SERVER, args):
 	# receive packet
 	received, client_address = server.receive()
 	logging.info(f"[LOG] serviced {client_address}")
-	logging.info(f"{received or 'Discarded'}")
+	logging.info(f"{received or 'Discarded or Residual'}")
 
 	if received is not None:
 		# write to file
