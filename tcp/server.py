@@ -39,6 +39,7 @@ class UDP_SERVER():
 		try:
 			# e.g. corruption
 			packet = serialize.deserialize(raw_packet)
+			logging.debug(f'rcvd {packet}')
 		except:
 			packet = None
 		return packet, client_address
@@ -156,7 +157,7 @@ class TCP_SERVER(UDP_SERVER):
 			dst_port=client_address[1], 
 			seq_num=self.__seq_num, 
 			ack_num=self.__ack_num, 
-			_flags=Flags(cwr=10, ece=0, ack=0, syn=0, fin=1), 
+			_flags=Flags(cwr=0, ece=0, ack=0, syn=0, fin=1), 
 			rcvwd=10)
 		packet = Packet(header, '')
 		packet.compute_checksum()

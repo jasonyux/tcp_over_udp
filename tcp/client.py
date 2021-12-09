@@ -372,7 +372,7 @@ class TCP_CLIENT(UDP_CLIENT):
 			ack_num=self.__ack_num, 
 			_flags=Flags(cwr=0, ece=0, ack=0, syn=0, fin=1),
 			rcvwd=9)
-		packet = Packet(header, '')
+		packet = Packet(header, b'')
 		packet.compute_checksum()
 		self.__fin_start_seq = self.__seq_num
 
