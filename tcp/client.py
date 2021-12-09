@@ -50,13 +50,13 @@ class TCP_CLIENT(UDP_CLIENT):
 	INIT_TIMEOUT_INTERVAL = 1
 	CLOSE_WAIT_TIME = 30
 
-	def __init__(self, udpl_ip, udpl_port, ack_lstn_port):
+	def __init__(self, udpl_ip, udpl_port, window_size, ack_lstn_port):
 		super().__init__(udpl_ip, udpl_port, ack_lstn_port)
 		self.__seq_num = 0
 		self.__ack_num = 0 # assumes both sides start with seq=0
 		self.__timer = timer.TCPTimer(TCP_CLIENT.INIT_TIMEOUT_INTERVAL, self.retransmit)
 		self.__window = []
-		self.__window_size = 3
+		self.__window_size = window_size
 		self.__send_base = 0 # smallest unacked seq num
 		self.__state = TCP_CLIENT.ESTABLISHED
 

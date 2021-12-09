@@ -26,7 +26,7 @@ Below is the setup for local testing
 	Out of order      : 0%
 	Jitter            : 0% of delay
 	```
-2. Start the server client respectively by:
+2. Start the server client respectively by (or use `image1.png`):
 	```bash
 	➜ python tcpserver.py file1.txt
 	The server is ready to receive

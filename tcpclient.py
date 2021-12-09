@@ -3,7 +3,7 @@ import logging
 import argparse
 import time
 import threading
-from structure import packet
+import os.path as path
 
 from tcp.client import TCP_CLIENT
 
@@ -24,21 +24,6 @@ def __receive(client:TCP_CLIENT):
 	return
 
 def send_file(client:TCP_CLIENT, args):
-	"""
-	while True:
-		msg = input("Input: ")# + f"; I am at {client.get_info()}"
-		
-		# send packet
-		client.send(msg)
-
-		# receive packet
-		received = client.receive()
-		logging.info(received)
-
-		if "quit" in msg:
-			client.terminate()
-			break
-	"""
 	receiv_thread = threading.Thread(target=__receive, args=(client,))
 	with open(args.file, 'rb') as openfile:
 		receiv_thread.start()
@@ -53,17 +38,32 @@ def send_file(client:TCP_CLIENT, args):
 		receiv_thread.join()
 	return
 
+def init_args(args):
+	"""Check whether if arguments specified are expected
+	"""
+	if args.window_size >= globals.MSS and args.window_size % globals.MSS == 0:
+		args.window_size = args.window_size / globals.MSS
+	if not path.exists(args.file):
+		raise Exception(f"File: '{args.file}' does not exist!")
+	return args
+
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser('TCP data sender')
 	parser.add_argument('file', type=str, help='output file to send')
+	parser.add_argument('udpl_addr', type=str, help='IP address of UDPL to send to')
+	parser.add_argument('udpl_port', type=int, help='Port number of UDPL to send to')
+	parser.add_argument('window_size', type=int, help='Sender window size in bytes. (multiple of MSS=512B)')
+	parser.add_argument('ack_port', type=int, help='Port number to listen on, for receiving ACK from server')
 	args = parser.parse_args()
+	args = init_args(args)
 
 	logging.basicConfig(level=logging.DEBUG)
 
 	client = TCP_CLIENT(
-		udpl_ip=globals.UDPL_IP_ADDR,
-		udpl_port=globals.UDPL_LSTN_PORT,
-		ack_lstn_port=globals.ACK_LSTN_PORT)
+		udpl_ip=args.udpl_addr,
+		udpl_port=args.udpl_port,
+		window_size=args.window_size,
+		ack_lstn_port=args.ack_port)
 	
 	send_file(client, args)
