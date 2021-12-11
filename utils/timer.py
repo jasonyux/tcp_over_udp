@@ -4,7 +4,16 @@ from threading import Timer
 from typing import *
 
 class TCPTimer(object):
+	"""TCP timer implementation. Used for multithreading mainly
+	"""
+
 	def __init__(self, interval: float, function: Callable[..., Any], *args, **kwargs) -> None:
+		"""TCP Timer implementation. Essentially triggers @function when timedout.
+
+		Args:
+			interval (float): TimeoutInterval
+			function (Callable[..., Any]): function to call when timedout
+		"""
 		self.__interval = interval
 		self.__function = function
 		self.__args = args

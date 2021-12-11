@@ -1,12 +1,24 @@
 import logging
 
 from utils.serialize import serialize
-
 from .header import TCPHeader
 from utils import util
 
 class Packet(util.Comparable):
+	"""TCP Packet
+
+	This abstraction gives you a human-readable packet on the "surface",
+	but during transmission, it will be "serialized" by struct.pack to become
+	bytes.
+	"""
+
 	def __init__(self, header:TCPHeader, payload:str) -> None:
+		"""Construct a packet from header and payload
+
+		Args:
+			header (TCPHeader): a constructed TCP header
+			payload (str or bytes): payload
+		"""
 		self.__header = header
 		self.__payload = payload
 
@@ -31,6 +43,11 @@ class Packet(util.Comparable):
 		return
 
 	def __compute_checksum(self):
+		"""Computes the 1s complement treating self.__header=0
+
+		Returns:
+			[int]: 1s complement of checksummed packet
+		"""
 		prev_checksum = self.__header.checksum
 		self.__header.set_checksum(value=0)
 		# computes checksum without header

@@ -4,6 +4,15 @@ from structure.header import TCPHeader, Flags
 
 
 def serialize(packet:Packet):
+	"""Converts the Human-readable Packet to bytes
+
+	Args:
+		packet (Packet): Packet abstraction
+
+	Returns:
+		bytes: actual bytes of the packet 
+		(i.e. 20 bytes header + up to 512 byte payload)
+	"""
 	line_1 = struct.pack('HH', packet.header.src_port, packet.header.dst_port)
 	line_2 = struct.pack('I', packet.header.seq_num)
 	line_3 = struct.pack('I', packet.header.ack_num)
@@ -19,6 +28,14 @@ def serialize(packet:Packet):
 	return final
 
 def deserialize(packet):
+	"""Converts bytes to a HUman-readable Packet
+
+	Args:
+		packet (bytes): network transmitted bytes
+
+	Returns:
+		Packet: human-readable Packet
+	"""
 	total_size = len(packet)
 	src_port, dst_port, \
 		seq_num, ack_num, \

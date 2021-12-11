@@ -9,6 +9,9 @@ from utils import serialize, timer
 from utils.sampler import RTTSampler
 
 class UDP_CLIENT():
+	"""Underlying UDP client for communication
+	"""
+
 	def __init__(self, udpl_ip, udpl_port, ack_lstn_port):
 		self.__dst_address = (udpl_ip, udpl_port)
 		self.__buffersize = 2048
@@ -51,6 +54,14 @@ class TCP_CLIENT(UDP_CLIENT):
 	CLOSE_WAIT_TIME = 30
 
 	def __init__(self, udpl_ip, udpl_port, window_size, ack_lstn_port):
+		"""TCP reliable sender implementation
+
+		Args:
+			udpl_ip (str): udpl IP address to send to (proxy address)
+			udpl_port (int): udpl port address to send to
+			window_size (int): number of packets allowed in current window
+			ack_lstn_port (int): port number of receiving ACK from server
+		"""
 		super().__init__(udpl_ip, udpl_port, ack_lstn_port)
 		self.__seq_num = 0
 		self.__ack_num = 0 # assumes both sides start with seq=0
@@ -68,10 +79,22 @@ class TCP_CLIENT(UDP_CLIENT):
 		self.window_lock = threading.Lock()
 		self.rcv_lock = threading.Lock()
 		self.__thread_fin_packets = []
-		self.__thread_fin_packets_id = set()
 
 	@property
 	def state(self):
+		"""Returns current state of the connection
+
+		Takes value from
+			CLOSED = 0 \n
+			ESTABLISHED = 1 \n
+			FIN_WAIT_1 = 2 \n
+			FIN_WAIT_2 = 3 \n
+			TIME_WAIT = 4 \n
+			BEGIN_CLOSE = 5 \n
+
+		Returns:
+			[int]: current state information
+		"""
 		return self.__state
 
 	def __next_seq(self, payload):
@@ -107,6 +130,14 @@ class TCP_CLIENT(UDP_CLIENT):
 		return
 
 	def send(self, payload:str):
+		"""Reliably send a packet with payload @payload
+
+		Args:
+			payload (str or bytes): payload
+
+		Returns:
+			int: success=0
+		"""
 		# 0. consult window
 		if len(self.__window) == self.__window_size:
 			return -1
@@ -130,6 +161,16 @@ class TCP_CLIENT(UDP_CLIENT):
 		return 0
 
 	def retransmit(self):
+		"""Actions when timer timed out, retransmitting the oldest UNACKED packet
+
+		1. Attempts to aquire the window lock, as it will need to extract a packet
+		from the current window
+		2. retransmit
+		3. double timeout interval and restart timer
+		4. update self.__waiting_packets, which contains packet that could be RTT sampled.
+		If there is a timeout, then all packets in current window should NOT be inside
+		self.__waiting_packets (as discussed in post @331)
+		"""
 		logging.debug('retransmitting')
 		# 0. if connection is closed, stop whatever you haven't finished
 		self.window_lock.acquire() # need to read
@@ -211,6 +252,11 @@ class TCP_CLIENT(UDP_CLIENT):
 		
 
 	def receive(self):
+		"""Receving a packet from server
+
+		Returns:
+			[Packet]: packet received.
+		"""
 		# 1. receive ACK packet
 		packet = self.receive_packet()
 
@@ -337,6 +383,8 @@ class TCP_CLIENT(UDP_CLIENT):
 		return
 
 	def reset(self):
+		"""Clean up (optional as the program terminates anyway)
+		"""
 		self.__state = TCP_CLIENT.CLOSED
 		self.window_lock.acquire()
 		self.__timer.cancel()
@@ -355,6 +403,13 @@ class TCP_CLIENT(UDP_CLIENT):
 		return
 
 	def terminate(self):
+		"""Terminate the connection
+
+		After the FIN handshake, close the underlying UDP socket.
+
+		Returns:
+			None: None
+		"""
 		# 0. wait for all other retransmission to be done
 		while len(self.__window) > 0:
 			# the other thread will timeout and retransmit
@@ -388,6 +443,19 @@ class TCP_CLIENT(UDP_CLIENT):
 
 	# for multithreading
 	def update_fin_packets(self, packet:Packet):
+		"""Method for adding packets into the self.__thread_fin_packets list
+
+		This is needed since I am doing multithreading: a threading running :func:receive could
+		accidentally grabbed a FIN ACK packet, which the main thread would be waiting on. This 
+		would cause a HANG in the program. 
+
+		So the solution is to use lock + a safety measure such that if those termination packets
+		are grabbed, it is appended in the self.__thread_fin_packets list which the main thread
+		will also check.
+
+		Args:
+			packet (Packet): packet in the FIN handshake accidentally grabbed by slave thread
+		"""
 		# in case if the thread grabbed one of those packets, client won't be able to terminate
 		# if packet.header.ack_num >= self.__fin_start_seq or packet.header.seq_num >= self.__fin_start_seq:
 		logging.debug("adding in update_fin_packets")

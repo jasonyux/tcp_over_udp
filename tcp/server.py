@@ -8,6 +8,9 @@ from utils import serialize, util
 from socket import *
 
 class UDP_SERVER():
+	"""Underlying unreliable UDP server/receiver
+	"""
+	
 	def __init__(self, lsten_port, ack_addr, ack_port) -> None:
 		self.__serveraddress = ('', lsten_port) # the socket is reachable by any address the machine happens to have
 		self.__ack_address = ack_addr, ack_port
@@ -58,6 +61,13 @@ class TCP_SERVER(UDP_SERVER):
 	LAST_ACK = 4
 
 	def __init__(self, lsten_port, ack_addr, ack_port) -> None:
+		"""A TCP reliable receiver implementation
+
+		Args:
+			lsten_port (int): port to listen/bind to
+			ack_addr (str): IP address to send ACK
+			ack_port (int): port to send ACK
+		"""
 		super().__init__(lsten_port, ack_addr, ack_port)
 		self.__seq_num = 0
 		self.__ack_num = 0 # assumes both sides start with seq=0
@@ -69,6 +79,17 @@ class TCP_SERVER(UDP_SERVER):
 
 	@property
 	def state(self):
+		"""Returns the current state of the TCP connection
+		Possible values are 
+			CLOSED = 0
+			LISTEN = 1
+			ESTABLISHED = 2
+			CLOSE_WAIT = 3
+			LAST_ACK = 4
+
+		Returns:
+			[int]: current state information
+		"""
 		return self.__state
 
 	def __next_seq(self, payload):
@@ -80,6 +101,14 @@ class TCP_SERVER(UDP_SERVER):
 		return
 
 	def send(self, payload):
+		"""Construct and send a packet with payload @payload
+
+		Args:
+			payload (bytes): payload, should not exceeed MSS=512
+
+		Returns:
+			int: 0=packet accepted, -1=packet rejected (due to full window)
+		"""
 		# 1. construct packet
 		client_address = self.ack_addr
 		_, src_port = self.get_info()
@@ -136,6 +165,12 @@ class TCP_SERVER(UDP_SERVER):
 		return packet
 
 	def receive(self):
+		"""Blocking receive a packet
+
+		Returns:
+			(Packet, tuple): returns (Packet, client_address) if packet is not corrupt. 
+			Else, returns (None, client_address)
+		"""
 		# 1. receive packet
 		packet, client_address = self.receive_packet()
 		# 2. check if packet is corrupt
@@ -199,6 +234,8 @@ class TCP_SERVER(UDP_SERVER):
 		return
 
 	def reset(self):
+		"""Resets the server's state. Waiting for a new client
+		"""
 		self.__seq_num = 0
 		self.__ack_num = 0 # assumes both sides start with seq=0
 		self.__state = TCP_SERVER.LISTEN
@@ -206,6 +243,17 @@ class TCP_SERVER(UDP_SERVER):
 		pass
 
 	def close_connection(self, packet:Packet):
+		"""Inner helper function when client intiates FIN requests. 
+		
+		Essentially performs the FIN handshake with the client and does 
+		:func:self.reset when done.
+
+		Args:
+			packet (Packet): FIN packet received from client
+
+		Returns:
+			None: None
+		"""
 		# 1. send ack for fin
 		packet = self.send('')
 		logging.info(f'sent {packet}')
@@ -225,6 +273,13 @@ class TCP_SERVER(UDP_SERVER):
 		return None
 
 	def start(self, args):
+		"""Start the server
+		Start to listen and accept clients.
+		Reset when client intiates FIN requests and completed the handshake
+
+		Args:
+			args (namespace): command line arguments for the program, e.g. which file to write to
+		"""
 		server = self._socket
 		server.bind(self._serveraddress)
 		# other application related init
@@ -251,14 +306,6 @@ def init(args):
 			f.truncate(0)
 	return
 
-def __insert_content(old_content, start, new_content):
-	end_pos = start + len(new_content)
-	content = old_content[:start] + new_content
-	if len(old_content) > end_pos:
-		content += old_content[end_pos:]
-	return content
-
-
 def __to_file(packets:Packet, dst:str):
 	with open(dst, 'ab+') as openfile:
 		for packet in packets:
@@ -279,6 +326,12 @@ rcvd_seq = set()
 rcvd = []
 last_wrote = 0
 def to_file(packet:Packet, dst:str):
+	"""Writes the content of a packet to a file
+
+	Args:
+		packet (Packet): a non-corrupt packet received
+		dst (str): destination file to write to
+	"""
 	global rcvd, last_wrote
 
 	if packet.header.seq_num in rcvd_seq:
@@ -315,6 +368,15 @@ def to_file(packet:Packet, dst:str):
 	return
 
 def service_client(server:TCP_SERVER, args):
+	"""Specifies what to do when received something from client
+	
+	Essentially does 1) receive 2) check packet received 
+	3) write to file 4) send ACK
+
+	Args:
+		server (TCP_SERVER): running instance of TCP_SERVER
+		args (namespace): command line arguments
+	"""
 	# receive packet
 	received, client_address = server.receive()
 	logging.info(f"[LOG] serviced {client_address}")

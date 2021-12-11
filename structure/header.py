@@ -1,7 +1,6 @@
 from typing import Callable
 from utils import util
 
-
 class Printable(util.Comparable):
 	def __init__(self) -> None:
 		super().__init__()
@@ -17,6 +16,9 @@ class Printable(util.Comparable):
 
 
 class Flags(Printable):
+	"""A human readable TCP Flag abtraction
+	"""
+
 	def __init__(self, cwr, ece, ack, syn, fin) -> None:
 		super().__init__()
 		self.__cwr = cwr
@@ -62,7 +64,22 @@ class Header(Printable):
 		super().__init__()
 
 class TCPHeader(Header):
+	"""A human readable TCP Header abtraction
+	"""
+
 	def __init__(self, src_port, dst_port, seq_num, ack_num, _flags:Flags, rcvwd) -> None:
+		"""Constructs a TCP Header.
+
+		(Note: in the end, during transmission everything will be converted to byte data)
+
+		Args:
+			src_port (int): scr_port
+			dst_port (int): dst_port
+			seq_num (int): sequence number
+			ack_num (int): ack number
+			_flags (Flags): TCP Flags
+			rcvwd (int): rcvwd 
+		"""
 		self.__src_port = src_port
 		self.__dst_port = dst_port
 		self.__seq_num = seq_num

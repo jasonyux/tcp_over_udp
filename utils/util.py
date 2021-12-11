@@ -2,6 +2,9 @@ from typing import Callable
 
 
 class Comparable(object):
+	"""Implementation so that objects are compared by values of their ATTRIBUTES
+	"""
+
 	def __init__(self) -> None:
 		super().__init__()
 
@@ -23,6 +26,7 @@ class Comparable(object):
 				if not isinstance(data, Callable):
 					attr_values.append(data)
 		return hash(tuple(attr_values))
+
 
 def largest_contionus(sequence:set, sort_key=None, next_diff=None, pop=True):
 	"""Given a sequence {1,2,4,5}, returns the largest contionus number, i.e. 2

@@ -1,6 +1,12 @@
 import logging
 
 class RTTSampler(object):
+	"""TCP RTT Sampler
+
+	This class essentially allows you to input a measured RTT and updates 
+	TimeoutInterval internally. So the next time, you can get the computed 
+	TimeoutInterval by :func:self.get_interval
+	"""
 	def __init__(self, init_interval) -> None:
 		super().__init__()
 		self.__timeout_interval = init_interval

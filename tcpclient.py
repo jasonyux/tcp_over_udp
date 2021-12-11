@@ -24,6 +24,15 @@ def __receive(client:TCP_CLIENT):
 	return
 
 def send_file(client:TCP_CLIENT, args):
+	"""Send (any type of) file to server
+
+	This will do two things: 1) start a thread to do BLOCKING receive 2) start a loop,
+	read MSS=512 bytes, and send to server.
+
+	Args:
+		client (TCP_CLIENT): a configured TCP_CLIENT, which knows where to send data to
+		args (namespace): command line arguments for the program
+	"""
 	receiv_thread = threading.Thread(target=__receive, args=(client,))
 	with open(args.file, 'rb') as openfile:
 		receiv_thread.start()
