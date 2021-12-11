@@ -40,7 +40,7 @@ The project structure should look like:
 ```
 
 ## Usage
-Below are some configurations that have been already test and should work. They also demonstrate some of the capabilities of the code. 
+Below are some configurations that have been already tested and should work. They also demonstrate some of the capabilities of the code. 
 
 > Note: 
 > 
@@ -64,6 +64,9 @@ Below are some configurations that have been already test and should work. They 
 		➜ python tcpclient.py file1.txt 127.0.0.1 41192 2048 41191
 		```
 		where `file1.txt` can be replaced by any file with extension `.txt` in this example.
+	
+	> Note:
+	> - if bit error `-b` is made to be very big, it will incur a chance that `checksum` itself will not be able to detect error. In that case, server/client may hang as corrupted packets will be treated as normal packets.
 -  **Transmitting non-text files**.
     
     Currently it should also be able to handle any non-text files, as long as the extension matches up in the server and client side. For example, I have placed a `image1.png` file under the directory, and you can try transmitting that by:
@@ -83,6 +86,13 @@ Below are some configurations that have been already test and should work. They 
 		➜ python tcpclient.py image1.png 127.0.0.1 41192 2048 41191
 		```
 		(or any other file yuo want, as long as the file extension of the `file` argument on server and client matches up)
+- **Multiple Client Runs**
+  
+  The above setups should also work through multiple runs of client. In other words:
 
-## Features and Documentation
+  1. start up `newudpl` and `server.py`
+  2. run `tcpclient.py` to transfer some files
+  3. When step (ii) terminated, you can run `tcpclient.py` again (without restarting the server) as the server should have resetted and will treat the connection as a new client!
 
+## Documentations
+A detailed report on how various parts of the code work can be found under `submission_docs/report.md` or `submission_docs/report.pdf`.
