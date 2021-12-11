@@ -1,11 +1,11 @@
 # Features and Documentation
 This section briefly discusses some of the TCP related features that I've implemented, and how various functions work.
 
-## Overall Desgin
+## Overall Design
 
 TCP Client basically functions as follows:
 
-1. Given a set of command line arguements in `args`
+1. Given a set of command line arguments in `args`
 2. Construct a `TCP_CLIENT` instance which constructs a `UDP_CLIENT` under the hood, and intializes
    parameters such as `port` number to send to, `port` number to receive from, etc
 3. Start a thread for doing blocking receive in a loop. In particular, it runs the following method
@@ -31,7 +31,7 @@ TCP Client basically functions as follows:
 		logging.debug(f'at __wait_server_ack')
 		fin_seq = fin_packet.header.seq_num
 		self.__state = TCP_CLIENT.FIN_WAIT_1
-
+	
 		# find FIN ACK packet
 		check_threading = True
 		while self.__state == TCP_CLIENT.FIN_WAIT_1:
@@ -99,7 +99,7 @@ TCP Receiver/Server does the following:
 		"""Start the server
 		Start to listen and accept clients.
 		Reset when client intiates FIN requests and completed the handshake
-
+	
 		Args:
 			args (namespace): command line arguments for the program, e.g. which file to write to
 		"""
@@ -109,7 +109,7 @@ TCP Receiver/Server does the following:
 		init(args)
 		self.__state = TCP_SERVER.LISTEN
 		print("The server is ready to receive")
-
+	
 		while True:
 			try:
 				self.__state = TCP_SERVER.ESTABLISHED
@@ -127,7 +127,7 @@ TCP Receiver/Server does the following:
 		
 		Essentially does 1) receive 2) check packet received 
 		3) write to file 4) send ACK
-
+	
 		Args:
 			server (TCP_SERVER): running instance of TCP_SERVER
 			args (namespace): command line arguments
@@ -136,11 +136,11 @@ TCP Receiver/Server does the following:
 		received, client_address = server.receive()
 		logging.info(f"[LOG] serviced {client_address}")
 		logging.info(f"{received or 'Discarded or Residual'}")
-
+	
 		if received is not None:
 			# write to file
 			to_file(received, dst=args.file)
-
+	
 		# send ACK
 		if server.state == TCP_SERVER.ESTABLISHED:
 			server.send('')
@@ -158,33 +158,33 @@ TCP Receiver/Server does the following:
   
   This is implemented as the following class
   ```python
-
+	
 	class Packet(util.Comparable):
 		"""TCP Packet
-
+	
 		This abstraction gives you a human-readable packet on the "surface",
 		but during transmission, it will be "serialized" by struct.pack to become
 		bytes.
 		"""
-
+	
 		def __init__(self, header:TCPHeader, payload:str) -> None:
 			"""Construct a packet from header and payload
-
+	
 			Args:
 				header (TCPHeader): a constructed TCP header
 				payload (str or bytes): payload
 			"""
 			self.__header = header
 			self.__payload = payload
-
+	
 		@property
 		def header(self):
 			return self.__header
-
+	
 		@property
 		def payload(self):
 			return self.__payload
-
+	
 		@header.setter
 		def header(self, value):
 			self.__header = value
@@ -192,16 +192,16 @@ TCP Receiver/Server does the following:
 		@payload.setter
 		def payload(self, value):
 			self.__payload = value
-
+	
 		def compute_checksum(self):
 			checksum = self.__compute_checksum()
 			checksum = ~checksum & 0xffff # 1s complement and mask
 			self.__header.set_checksum(checksum)
 			return
-
+	
 		def __compute_checksum(self):
 			"""Computes the 1s complement treating self.__header=0
-
+	
 			Returns:
 				[int]: 1s complement of checksummed packet
 			"""
@@ -218,12 +218,12 @@ TCP Receiver/Server does the following:
 			# reset
 			self.__header.set_checksum(prev_checksum)
 			return checksum 
-
+	
 		def is_corrupt(self):
 			current_checksum = self.__compute_checksum()
 			logging.debug(f'checksum result {current_checksum & self.__header.checksum}')
 			return current_checksum & self.__header.checksum != 0
-
+	
 		def __str__(self):
 			content = f"""
 			---
@@ -236,10 +236,10 @@ TCP Receiver/Server does the following:
 	```python
 	def serialize(packet:Packet):
 		"""Converts the Human-readable Packet to bytes
-
+	
 		Args:
 			packet (Packet): Packet abstraction
-
+	
 		Returns:
 			bytes: actual bytes of the packet 
 			(i.e. 20 bytes header + up to 512 byte payload)
@@ -257,13 +257,13 @@ TCP Receiver/Server does the following:
 		if len(packet.payload) != 0:
 			final += packet.payload
 		return final
-
+	
 	def deserialize(packet):
 		"""Converts bytes to a HUman-readable Packet
-
+	
 		Args:
 			packet (bytes): network transmitted bytes
-
+	
 		Returns:
 			Packet: human-readable Packet
 		"""
@@ -311,7 +311,7 @@ TCP Receiver/Server does the following:
 			packet = structure.packet.serialize(packet)
 			ret = socket.sendto(packet, client_address)
 			return ret
-
+	
 	def receive_packet(self):
 		server = self.__socket
 		raw_packet, client_address = server.recvfrom(self.__buffersize)
@@ -323,16 +323,18 @@ TCP Receiver/Server does the following:
 			packet = None
 		return packet, client_address
 	```
+	
 - **Timer** (used for timeouts)
   This in TCP is basically based on the `threading.Timer` module:
-  	```python
+  
+	```python
 	class TCPTimer(object):
 	"""TCP timer implementation. Used for multithreading mainly
 	"""
-
+	
 	def __init__(self, interval: float, function: Callable[..., Any], *args, **kwargs) -> None:
 		"""TCP Timer implementation. Essentially triggers @function when timedout.
-
+	
 		Args:
 			interval (float): TimeoutInterval
 			function (Callable[..., Any]): function to call when timedout
@@ -342,11 +344,11 @@ TCP Receiver/Server does the following:
 		self.__args = args
 		self.__kwargs = kwargs
 		self.__timer = None
-
+	
 	@property
 	def interval(self):
 		return self.__interval
-
+	
 	def start(self):
 		if self.__timer is not None and self.__timer.is_alive():
 			logging.error('timer already running')
@@ -355,7 +357,7 @@ TCP Receiver/Server does the following:
 		self.__timer.start()
 		logging.debug('timer started')
 		return
-
+	
 	def is_alive(self):
 		if self.__timer is None:
 			return False
@@ -366,25 +368,29 @@ TCP Receiver/Server does the following:
 			return
 		self.__timer.cancel()
 		return
-	
+		
 	def restart(self, new_interval=None):
 		if self.__timer is not None and self.__timer.is_alive():
 			self.__timer.cancel()
+	
 		# calling self.start() causes problem as the thread might NOT be finished 
+	
 		# (e.g. function still executing)
-		self.__interval = new_interval or self.__interval
-		self.__timer = Timer(self.__interval, self.__function, args=self.__args, kwargs=self.__kwargs)
-		self.__timer.start()
-		return
-  	```
+	
+      self.__interval = new_interval or self.__interval
+	    self.__timer = Timer(self.__interval, self.__function, args=self.__args, kwargs=self.__kwargs)
+	    self.__timer.start()
+	    return
+	```
+	
 	where whenever you start a `TCPTimer`, it basically starts another thread using `Timer`. When that `Timer` object timed out, it will essentially call the `self.__function` (which will be the `retransmit` function). Therefore, in this way, retranmissions of packets will not interfere with the main program of sending/receiving.
-
+	
 	Inside the TCP client, some of the usages look like:
 	```python
 	class TCP_CLIENT(UDP_CLIENT):
 		def __init__(self, udpl_ip, udpl_port, window_size, ack_lstn_port):
 			"""TCP reliable sender implementation
-
+	
 			Args:
 				udpl_ip (str): udpl IP address to send to (proxy address)
 				udpl_port (int): udpl port address to send to
@@ -401,7 +407,7 @@ TCP Receiver/Server does the following:
 		def __post_send(self, packet:Packet):
 			logging.debug("at __post_send")
 			# some code omitted
-
+	
 			# 3. check if timer is running
 			self.__rtt_sampling.double_interval(enabled=False, restore=False)
 			if not self.__timer.is_alive():
@@ -412,13 +418,14 @@ TCP Receiver/Server does the following:
 	where notice that when there is a timeout, it will go doubling the interval by `self.__rtt_sampling.double_interval(enabled=False, restore=False)` and then the timer will restart (if not running) with an interval of `self.__timer.restart(new_interval=self.__rtt_sampling.get_interval())`. 
 	
 	To see how the RTT Sampler works, see the next bullet point on RTT Sampler.
+	
 - **RTT Sampler**
   
   Again, this is implemented as an object so that detailed updating mechanism can be hidden away from the main logics of TCP sending. In details, it is implemented as follows:
 	```python
 	class RTTSampler(object):
 		"""TCP RTT Sampler
-
+	
 		This class essentially allows you to input a measured RTT and updates 
 		TimeoutInterval internally. So the next time, you can get the computed 
 		TimeoutInterval by :func:self.get_interval
@@ -426,14 +433,14 @@ TCP Receiver/Server does the following:
 		def __init__(self, init_interval) -> None:
 			super().__init__()
 			self.__timeout_interval = init_interval
-
+	
 			# used for estimation
 			self.__estimated_rtt = init_interval
 			self.__alpha = 0.125
 			self.__dev_rtt = 0
 			self.__beta = 0.25
 			self.__gamma = 2
-
+	
 			# used for doubling timeout
 			self.__within_timeout = False
 			pass
@@ -447,7 +454,7 @@ TCP Receiver/Server does the following:
 		def update_interval(self, sample_rtt):
 			# we received something, switch back to using normal timeout
 			self.__within_timeout = False
-
+	
 			alpha = self.__alpha
 			beta = self.__beta
 			self.__estimated_rtt = (1-alpha) * self.__estimated_rtt + alpha * sample_rtt
@@ -460,7 +467,7 @@ TCP Receiver/Server does the following:
 			rounded new timeout interval {self.__timeout_interval}
 			""")
 			return
-
+	
 		def get_interval(self):
 			if self.__within_timeout:
 				self.__timeout_interval *= 2
@@ -475,7 +482,7 @@ TCP Receiver/Server does the following:
 		if packet.header.ack_num > self.__send_base:
 			# 2. new ACK received
 			# some code omitted here
-
+	
 			# 3. update RTT
 			start_time = self.__waiting_packets.get(packet.header.ack_num)
 			if start_time is not None: # not retransmitted
@@ -487,16 +494,17 @@ TCP Receiver/Server does the following:
 		return
 	```
 	where basically it will check the `self.__waiting_packets` dictionary, which is added and updated by the `send` and `retransmit` methods, and see if we should sample this RTT or not.
+	
 - **Pipelined Sending** (window)
   
   This is now simple due to the multithreading receive. In essense, whenever we send something, it a) check the current window size to see if it is full, b) if not full, send c) perform `__post_send` actions such as updating the next sequecen number, adding packet into window, and start a timing track for RTT sampler
 	```python
 	def send(self, payload:str):
 		"""Reliably send a packet with payload @payload
-
+	
 		Args:
 			payload (str or bytes): payload
-
+	
 		Returns:
 			int: success=0
 		"""
@@ -514,15 +522,16 @@ TCP Receiver/Server does the following:
 			rcvwd=10)
 		packet = Packet(header, payload)
 		packet.compute_checksum()
-
+	
 		# 2. send packet
 		self.send_packet(packet)
-
+	
 		# 3. update seq_num, etc
 		self.__post_send(packet)
 		return 0
-  	```
+  ```
 	(notice that we were able to construct a `Packet` in an entirely human-readable form because all the byte conversion is done secretly in the end by `serialize/deserialize`!)
+	
 - **Checksum**
 
 	To prevent against corrupted packet, the internet checksum basically performs the summing over data and check against the `checksum` field of the packet.
@@ -553,7 +562,7 @@ TCP Receiver/Server does the following:
 	```python
 	def __compute_checksum(self):
 		"""Computes the 1s complement treating self.__header=0
-
+	
 		Returns:
 			[int]: 1s complement of checksummed packet
 		"""
@@ -579,15 +588,16 @@ TCP Receiver/Server does the following:
 		logging.debug(f'checksum result {current_checksum & self.__header.checksum}')
 		return current_checksum & self.__header.checksum != 0
 	```
+	
 - **FIN**
   
   When a client finishes sending all pieces of a file, it starts calling `terminate` function, which basically starts performing the `FIN` "handshake":
 	```python
 	def terminate(self):
 		"""Terminate the connection
-
+	
 		After the FIN handshake, close the underlying UDP socket.
-
+	
 		Returns:
 			None: None
 		"""
@@ -595,10 +605,10 @@ TCP Receiver/Server does the following:
 		while len(self.__window) > 0:
 			# the other thread will timeout and retransmit
 			time.sleep(1)
-
+	
 		# change state so that the other thread will not receive packets
 		self.__state = TCP_CLIENT.BEGIN_CLOSE
-
+	
 		# 1. construct FIN packet
 		_, src_port = self.get_info()
 		header = TCPHeader(
@@ -611,24 +621,24 @@ TCP Receiver/Server does the following:
 		packet = Packet(header, b'')
 		packet.compute_checksum()
 		self.__fin_start_seq = self.__seq_num
-
+	
 		# 2. send packet
 		self.send_packet(packet)
-
+	
 		# 3. start timers
 		self.__post_send(packet)
-
+	
 		# 4. wait for acks and etc
 		self.__post_fin(packet)
 		return super().terminate()
-  	```
+  ```
 	where `super().terminate()` terminates the entire socket, so it is the end of transmission.
 
 	And similarly, the server will detect the `FIN` handshake during a `receive()` call:
 	```python
 	def receive(self):
 		"""Blocking receive a packet
-
+	
 		Returns:
 			(Packet, tuple): returns (Packet, client_address) if packet is not corrupt. 
 			Else, returns (None, client_address)
