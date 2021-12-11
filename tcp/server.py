@@ -1,16 +1,17 @@
 import logging
 import time
+import structure.packet
 
 from pathlib import Path
 from structure.header import TCPHeader, Flags
 from structure.packet import Packet
-from utils import serialize, util
+from utils import util
 from socket import *
 
 class UDP_SERVER():
 	"""Underlying unreliable UDP server/receiver
 	"""
-	
+
 	def __init__(self, lsten_port, ack_addr, ack_port) -> None:
 		self.__serveraddress = ('', lsten_port) # the socket is reachable by any address the machine happens to have
 		self.__ack_address = ack_addr, ack_port
@@ -32,7 +33,7 @@ class UDP_SERVER():
 
 	def send_packet(self, packet:Packet, client_address):
 		socket = self.__socket
-		packet = serialize.serialize(packet)
+		packet = structure.packet.serialize(packet)
 		ret = socket.sendto(packet, client_address)
 		return ret
 
@@ -41,7 +42,7 @@ class UDP_SERVER():
 		raw_packet, client_address = server.recvfrom(self.__buffersize)
 		try:
 			# e.g. corruption
-			packet = serialize.deserialize(raw_packet)
+			packet = structure.packet.deserialize(raw_packet)
 			logging.debug(f'rcvd {packet}')
 		except:
 			packet = None

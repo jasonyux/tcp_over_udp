@@ -1,11 +1,12 @@
 import logging
 import threading
 import time
+import structure.packet
 
 from socket import *
 from structure.packet import Packet
 from structure.header import TCPHeader, Flags
-from utils import serialize, timer
+from utils import timer
 from utils.sampler import RTTSampler
 
 class UDP_CLIENT():
@@ -24,13 +25,13 @@ class UDP_CLIENT():
 
 	def send_packet(self, packet:Packet):
 		socket = self.__socket
-		packet = serialize.serialize(packet)
+		packet = structure.packet.serialize(packet)
 		ret = socket.sendto(packet, self.__dst_address)
 		return ret
 
 	def receive_packet(self):
 		raw_packet, _ = self.__socket.recvfrom(self.__buffersize)
-		return serialize.deserialize(raw_packet)
+		return structure.packet.deserialize(raw_packet)
 
 	def get_info(self):
 		info = self.__socket.getsockname()

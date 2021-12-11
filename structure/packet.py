@@ -1,7 +1,7 @@
 import logging
+import struct
 
-from utils.serialize import serialize
-from .header import TCPHeader
+from .header import TCPHeader, Flags
 from utils import util
 
 class Packet(util.Comparable):
@@ -58,10 +58,10 @@ class Packet(util.Comparable):
 				checksum += all_bytes[i]
 				break
 			checksum += (all_bytes[i] << 8 + all_bytes[i+1])
-		checksum &= 0xffff
+		checksum = ~checksum & 0xffff # 1s complement and mask
 		# reset
 		self.__header.set_checksum(prev_checksum)
-		return ~checksum # 1s complement
+		return checksum 
 
 	def is_corrupt(self):
 		current_checksum = self.__compute_checksum()
@@ -75,3 +75,60 @@ class Packet(util.Comparable):
 		[Payload]: {self.__payload}
 		---"""
 		return content
+
+
+def serialize(packet:Packet):
+	"""Converts the Human-readable Packet to bytes
+
+	Args:
+		packet (Packet): Packet abstraction
+
+	Returns:
+		bytes: actual bytes of the packet 
+		(i.e. 20 bytes header + up to 512 byte payload)
+	"""
+	line_1 = struct.pack('HH', packet.header.src_port, packet.header.dst_port)
+	line_2 = struct.pack('I', packet.header.seq_num)
+	line_3 = struct.pack('I', packet.header.ack_num)
+	# convert flag
+	flag = packet.header.flags
+	flag_map = int(f"{flag.ack}{flag.cwr}{flag.ece}{flag.fin}{flag.syn}", 2)
+	line_4 = struct.pack('BBH', packet.header.header_len, flag_map, packet.header.rcvwd)
+	line_5 = struct.pack('HH', packet.header.checksum, 0)
+	# final
+	final = line_1 + line_2 + line_3 + line_4 + line_5
+	if len(packet.payload) != 0:
+		final += packet.payload
+	return final
+
+def deserialize(packet):
+	"""Converts bytes to a HUman-readable Packet
+
+	Args:
+		packet (bytes): network transmitted bytes
+
+	Returns:
+		Packet: human-readable Packet
+	"""
+	total_size = len(packet)
+	src_port, dst_port, \
+		seq_num, ack_num, \
+			header_len, flags, rcvwd, \
+				checksum, urg, \
+					data = struct.unpack(f'HHIIBBHHH{total_size-20}s', packet)
+	flags = format(flags, '#07b')
+	header = TCPHeader(
+		src_port=src_port,
+		dst_port=dst_port,
+		seq_num=seq_num, 
+		ack_num=ack_num, 
+		_flags=Flags(
+			cwr=int(flags[3]), 
+			ece=int(flags[4]), 
+			ack=int(flags[2]), 
+			syn=int(flags[6]),
+			fin=int(flags[5])),
+		rcvwd=rcvwd)
+	header.set_checksum(checksum)
+	packet = Packet(header, data)
+	return packet
