@@ -1,5 +1,7 @@
 import logging
 
+from utils.serialize import serialize
+
 from .header import TCPHeader
 from utils import util
 
@@ -31,18 +33,23 @@ class Packet(util.Comparable):
 	def __compute_checksum(self):
 		prev_checksum = self.__header.checksum
 		self.__header.set_checksum(value=0)
-		header_checksum = self.header.compute_checksum()
-		total = header_checksum + sum(self.__payload)
-		total = int(hex(total & 0xffff), 16)
+		# computes checksum without header
+		all_bytes = serialize(self)
+		checksum = 0
+		for i in range(0, len(all_bytes), 2):
+			if i + 1 == len(all_bytes):
+				checksum += all_bytes[i]
+				break
+			checksum += (all_bytes[i] << 8 + all_bytes[i+1])
+		checksum &= 0xffff
 		# reset
 		self.__header.set_checksum(prev_checksum)
-		return total
+		return ~checksum # 1s complement
 
 	def is_corrupt(self):
 		current_checksum = self.__compute_checksum()
-		logging.debug(f'current {current_checksum} vs {self.__header.checksum}')
-		return current_checksum != self.__header.checksum
-		return False
+		logging.debug(f'checksum result {current_checksum & self.__header.checksum}')
+		return current_checksum & self.__header.checksum == 0
 
 	def __str__(self):
 		content = f"""

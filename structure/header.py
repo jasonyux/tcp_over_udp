@@ -61,16 +61,6 @@ class Header(Printable):
 	def __init__(self) -> None:
 		super().__init__()
 
-	def compute_checksum(self):
-		ret = 0
-		for attribute in dir(self):
-			if attribute[:1] != "_":
-				data = getattr(self, attribute)
-				if not isinstance(data, Callable):
-					ret += int(data)
-		return ret
-
-
 class TCPHeader(Header):
 	def __init__(self, src_port, dst_port, seq_num, ack_num, _flags:Flags, rcvwd) -> None:
 		self.__src_port = src_port
