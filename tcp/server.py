@@ -1,6 +1,7 @@
 import logging
 import time
 import structure.packet
+import globals
 
 from pathlib import Path
 from structure.header import TCPHeader, Flags
@@ -15,7 +16,7 @@ class UDP_SERVER():
 	def __init__(self, lsten_port, ack_addr, ack_port) -> None:
 		self.__serveraddress = ('', lsten_port) # the socket is reachable by any address the machine happens to have
 		self.__ack_address = ack_addr, ack_port
-		self.__buffersize = 2048
+		self.__buffersize = globals.MSS + 20
 		self.__socket = socket(family=AF_INET, type=SOCK_DGRAM)
 		return
 

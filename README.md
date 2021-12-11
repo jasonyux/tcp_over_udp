@@ -34,7 +34,6 @@ The project structure should look like:
     ├── __init__.py
     ├── __pycache__
     ├── sampler.py
-    ├── serialize.py
     ├── timer.py
     └── util.py
 ```
@@ -96,3 +95,5 @@ Below are some configurations that have been already tested and should work. The
 
 ## Documentations
 A detailed report on how various parts of the code work can be found under `submission_docs/report.md` or `submission_docs/report.pdf`.
+
+Screen dumps running instances I tested can be found under `submission_docs` as well.

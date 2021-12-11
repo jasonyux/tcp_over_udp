@@ -2,6 +2,7 @@ import logging
 import threading
 import time
 import structure.packet
+import globals
 
 from socket import *
 from structure.packet import Packet
@@ -15,7 +16,7 @@ class UDP_CLIENT():
 
 	def __init__(self, udpl_ip, udpl_port, ack_lstn_port):
 		self.__dst_address = (udpl_ip, udpl_port)
-		self.__buffersize = 2048
+		self.__buffersize = globals.MSS + 20
 		self.__socket = socket(family=AF_INET, type=SOCK_DGRAM)
 		self.__socket.bind(('127.0.0.1', ack_lstn_port))
 
@@ -114,11 +115,9 @@ class TCP_CLIENT(UDP_CLIENT):
 		# 3. check if timer is running
 		self.__rtt_sampling.double_interval(enabled=False, restore=False)
 		if not self.__timer.is_alive():
-			self.__timer.restart(new_interval=self.__rtt_sampling.get_interval())
-		# checknig twice in case there is __timer timedout in one of them
-		if not self.__timer.is_alive():
 			logging.debug("restart timer")
 			self.__timer.restart(new_interval=self.__rtt_sampling.get_interval())
+		
 		# 4. update RTT sampler
 		packet_ack = packet.header.seq_num + (len(packet.payload) or 1)
 		start_time = self.__waiting_packets.get(packet_ack)
