@@ -39,7 +39,9 @@ class Packet(util.Comparable):
 		self.__payload = value
 
 	def compute_checksum(self):
-		self.__header.set_checksum(self.__compute_checksum())
+		checksum = self.__compute_checksum()
+		checksum = ~checksum & 0xffff # 1s complement and mask
+		self.__header.set_checksum(checksum)
 		return
 
 	def __compute_checksum(self):
@@ -58,7 +60,6 @@ class Packet(util.Comparable):
 				checksum += all_bytes[i]
 				break
 			checksum += (all_bytes[i] << 8 + all_bytes[i+1])
-		checksum = ~checksum & 0xffff # 1s complement and mask
 		# reset
 		self.__header.set_checksum(prev_checksum)
 		return checksum 
@@ -66,7 +67,7 @@ class Packet(util.Comparable):
 	def is_corrupt(self):
 		current_checksum = self.__compute_checksum()
 		logging.debug(f'checksum result {current_checksum & self.__header.checksum}')
-		return current_checksum & self.__header.checksum == 0
+		return current_checksum & self.__header.checksum != 0
 
 	def __str__(self):
 		content = f"""
