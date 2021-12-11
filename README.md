@@ -93,7 +93,10 @@ Below are some configurations that have been already tested and should work. The
   2. run `tcpclient.py` to transfer some files
   3. When step (ii) terminated, you can run `tcpclient.py` again (without restarting the server) as the server should have resetted and will treat the connection as a new client!
 
-## Documentations
+## Documentations and Screen Dumps
 A detailed report on how various parts of the code work can be found under `submission_docs/report.md` or `submission_docs/report.pdf`.
 
-Screen dumps running instances I tested can be found under `submission_docs` as well.
+Screen dumps running instances I tested can be found under `submission_docs` as well. All dumps are tested under the setting of `-L 50 -O 50 -B 16 -d 2`
+
+- `img_trans_tcpclient.log` and `img_trans_tcpserver.log` are dumps when the tranmission file is an image, i.e. `image1.png`
+- `txt_trans_tcpclient.log` and `txt_trans_tcpserver.log` are dumps when the transmission file is text, i.e. `file1.txt`

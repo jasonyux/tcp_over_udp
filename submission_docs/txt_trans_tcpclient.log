@@ -1,0 +1,104 @@
+DEBUG:root:at __post_send
+DEBUG:root:restart timer
+DEBUG:root:adding __waiting_packets 54 for payload=b'0\r\n1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n7\r\n8\r\n9\r\n10\r\n11\r\n12\r\n13\r\n14\r\n15\r\n' at 1639248603.829817
+DEBUG:root:retransmitting
+DEBUG:root:retransmitting 
+		---
+		[HEADER]: ack_num: 0
+			checksum: 57855
+			dst_port: 41192
+			flags: ack: 0
+			cwr: 0
+			ece: 0
+			fin: 0
+			syn: 0
+			
+			header_len: 20
+			rcvwd: 10
+			seq_num: 0
+			src_port: 41191
+			
+		[Payload]: b'0\r\n1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n7\r\n8\r\n9\r\n10\r\n11\r\n12\r\n13\r\n14\r\n15\r\n'
+		---
+DEBUG:root:doubling to 2
+DEBUG:root:currently having [54]
+DEBUG:root:now dict_keys([])
+DEBUG:root:54 > send_base: 0
+DEBUG:root:post_recv, send_base=54
+INFO:root:state 1
+INFO:root:thread recevied: 
+		---
+		[HEADER]: ack_num: 54
+			checksum: 49151
+			dst_port: 41191
+			flags: ack: 1
+			cwr: 0
+			ece: 0
+			fin: 0
+			syn: 0
+			
+			header_len: 20
+			rcvwd: 10
+			seq_num: 0
+			src_port: 41194
+			
+		[Payload]: b''
+		---
+DEBUG:root:at __post_send
+DEBUG:root:restart timer
+DEBUG:root:adding __waiting_packets 55 for payload=b'' at 1639248605.843381
+DEBUG:root:at __wait_server_ack
+DEBUG:root:retransmitting
+DEBUG:root:retransmitting 
+		---
+		[HEADER]: ack_num: 1
+			checksum: 28415
+			dst_port: 41192
+			flags: ack: 0
+			cwr: 0
+			ece: 0
+			fin: 1
+			syn: 0
+			
+			header_len: 20
+			rcvwd: 10
+			seq_num: 54
+			src_port: 41191
+			
+		[Payload]: b''
+		---
+DEBUG:root:doubling to 2
+DEBUG:root:currently having [55]
+DEBUG:root:now dict_keys([])
+DEBUG:root:55 > send_base: 54
+DEBUG:root:post_recv, send_base=55
+DEBUG:root:fin ack wait: ack_num: 55
+			checksum: 48639
+			dst_port: 41191
+			flags: ack: 1
+			cwr: 0
+			ece: 0
+			fin: 0
+			syn: 0
+			
+			header_len: 20
+			rcvwd: 10
+			seq_num: 1
+			src_port: 41194
+			
+DEBUG:root:fin wait check thread
+DEBUG:root:55 > send_base: 55
+DEBUG:root:fin wait: ack_num: 55
+			checksum: 27903
+			dst_port: 41191
+			flags: ack: 0
+			cwr: 0
+			ece: 0
+			fin: 1
+			syn: 0
+			
+			header_len: 20
+			rcvwd: 10
+			seq_num: 2
+			src_port: 41194
+			
